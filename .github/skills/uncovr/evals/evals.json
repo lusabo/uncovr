@@ -21,6 +21,9 @@
       "BR-002 is left contradicted, not resolved.",
       "No claim has business_validation approved.",
       "validation.md asks about BR-002, BR-004 and F-003, with BR-002 first.",
+      "APPROVAL_LIMIT is listed as a hard-coded parameter.",
+      "domain.md has a permission matrix for requester, approver and finance approver, and lists the e-mail fields as personal data without values.",
+      "F-001 is rated high criticality.",
       "The run stops at the scope checkpoint and at the baseline-review checkpoint."
     ]
   }

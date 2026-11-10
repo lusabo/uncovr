@@ -18,3 +18,4 @@ Business objectives are not stated in the repository. The approval limit is cont
 - Revision: gap — the fixture has no Git metadata.
 - Scope: whole repository (`src/`, `tests/`, `README.md`), confirmed by the Product Owner.
 - Exclusions: none.
+- Owners (CODEOWNERS): not declared.

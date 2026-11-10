@@ -1,7 +1,10 @@
+import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -10,6 +13,16 @@ import uncovr
 
 SKILL = Path(__file__).resolve().parent.parent / uncovr.SKILL_DIR
 FIXTURE = SKILL / "examples" / "order-approval"
+
+
+def load_script(name):
+    spec = importlib.util.spec_from_file_location(name, SKILL / "scripts" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+history = load_script("history")
 
 
 class UncovrTests(unittest.TestCase):
@@ -177,6 +190,88 @@ class StageCaseTests(unittest.TestCase):
                 for claim_id in case.get("questions", []):
                     self.assertIn(claim_id, text("validation.md").split("## Outstanding questions")[1])
             self.assertFalse([c for c in claims.values() if c["business_validation"] == "approved"])
+
+    def test_expected_baseline_has_every_template_section(self):
+        templates = SKILL / "assets" / "product-context"
+        for name in uncovr.ARTIFACTS:
+            headings = re.findall(r"(?m)^## .+$", (templates / name).read_text(encoding="utf-8"))
+            expected = (FIXTURE / "expected" / name).read_text(encoding="utf-8")
+            for heading in headings:
+                with self.subTest(file=name, heading=heading):
+                    self.assertRegex(expected, rf"(?m)^{re.escape(heading)}$")
+
+    def test_signals_reference_points_to_template_sections(self):
+        signals = (SKILL / "references" / "repository-signals.md").read_text(encoding="utf-8")
+        templates = SKILL / "assets" / "product-context"
+        for name, section in re.findall(r"`(\w+\.md)` → \*([^*]+)\*", signals):
+            with self.subTest(file=name, section=section):
+                self.assertRegex((templates / name).read_text(encoding="utf-8"),
+                                 rf"(?m)^## {re.escape(section)}$")
+
+
+class HistoryTests(unittest.TestCase):
+    """scripts/history.py: measured change per module, without naming anyone."""
+
+    LOG = (
+        "\x1eaaa\x1f2026-01-02T10:00:00+00:00\x1fana@example.com\x1ffix: refuse self-approval (PAY-12)\n"
+        "4\t1\tsrc/requests.py\n"
+        "10\t0\tpackage-lock.json\n"
+        "2\t2\tproduct-context/domain.md\n"
+        "\x1ebbb\x1f2026-02-03T10:00:00+00:00\x1fbob@example.com\x1ffeat: add rejection #7\n"
+        "6\t0\tsrc/requests.py\n"
+        "3\t1\tsrc/{old => api}/routes.py\n"
+        "-\t-\tdocs/diagram.png\n"
+        "1\t0\t.github/skills/uncovr/SKILL.md\n"
+    )
+
+    def test_new_path_resolves_renames(self):
+        self.assertEqual(history.new_path("src/{old => api}/routes.py"), "src/api/routes.py")
+        self.assertEqual(history.new_path("a.py => b.py"), "b.py")
+        self.assertEqual(history.new_path("src/x.py"), "src/x.py")
+
+    def test_summary_counts_fixes_tickets_and_authors_per_module(self):
+        rows = {row["module"]: row for row in history.summarise(history.parse_log(self.LOG), depth=1)}
+        self.assertEqual(set(rows), {"src", "docs"})
+        src = rows["src"]
+        self.assertEqual((src["commits"], src["fix_commits"], src["churn"], src["authors"]), (2, 1, 15, 2))
+        self.assertEqual(src["fix_ratio"], 0.5)
+        self.assertEqual(src["tickets"], ["#7", "PAY-12"])
+        self.assertEqual(src["last_change"], "2026-02-03")
+        self.assertNotIn("ana@example.com", json.dumps(rows))
+
+    def test_depth_splits_modules(self):
+        rows = {row["module"] for row in history.summarise(history.parse_log(self.LOG), depth=2)}
+        self.assertIn("src/api", rows)
+
+    def test_only_the_root_baseline_is_excluded(self):
+        self.assertTrue(history.excluded("product-context/domain.md"))
+        self.assertFalse(history.excluded("templates/product-context/domain.md"))
+        self.assertTrue(history.excluded("web/node_modules/x/index.js"))
+
+    @unittest.skipUnless(shutil.which("git"), "git not installed")
+    def test_reads_a_real_repository_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "Ana", "GIT_AUTHOR_EMAIL": "ana@example.com",
+                   "GIT_COMMITTER_NAME": "Ana", "GIT_COMMITTER_EMAIL": "ana@example.com"}
+            run = lambda *args: subprocess.run(["git", "-C", tmp, *args], check=True, env=env,
+                                               capture_output=True)
+            run("init", "-q")
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("a = 1\n", encoding="utf-8")
+            run("add", ".")
+            run("commit", "-q", "-m", "feat: first")
+            (root / "src" / "app.py").write_text("a = 2\n", encoding="utf-8")
+            run("commit", "-q", "-am", "fix: correct a")
+            before = sorted(p.name for p in root.rglob("*") if ".git" not in p.parts)
+            report = history.history(root, "10.years", 2)
+            self.assertEqual(report["commits"], 2)
+            self.assertEqual(report["modules"][0]["module"], "src")
+            self.assertEqual(report["modules"][0]["fix_commits"], 1)
+            rendered = history.render(report, 20)
+            self.assertNotIn("ana@example.com", rendered)
+            self.assertNotIn("Ana", rendered)
+            self.assertEqual(before, sorted(p.name for p in root.rglob("*") if ".git" not in p.parts))
 
 
 class MarketplacePackageTests(unittest.TestCase):

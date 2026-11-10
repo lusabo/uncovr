@@ -26,7 +26,7 @@ These are **four logical agent roles** in one skill, not four simultaneously-run
 
 ## Distribution
 
-- `.github/skills/uncovr/`: the single source of the skill — `SKILL.md`, `references/`, `assets/`, `scripts/check.py`, `examples/`, `evals/`. Paths inside it are relative to the skill, so it works wherever it is installed or served.
+- `.github/skills/uncovr/`: the single source of the skill — `SKILL.md`, `references/` (stages, evidence contract, repository signals), `assets/`, `scripts/check.py` and `scripts/history.py`, `examples/`, `evals/`. Paths inside it are relative to the skill, so it works wherever it is installed or served.
 - `.github/agents/uncovr.agent.md` and `uncovr-validator.agent.md`: VS Code only; entry point and Validator subagent.
 - `uncovr.py`: standard-library CLI. `install` copies the skill (without `examples/` and `evals/`) and the agents into a repository and records `.uncovr/manifest.json`; `status` reports drift; `check` reuses `scripts/check.py`; `pack` writes `dist/uncovr.zip` for the Agensi marketplace (one top folder, text only; agents excluded, since Agensi sells skills only).
 - `docs/`: architecture, acceptance and an example walkthrough for maintainers.

@@ -18,6 +18,11 @@ Ready for the Agensi marketplace.
 
 - `uncovr.py pack`: deterministic `dist/uncovr.zip` with one top folder and text files only; refuses symlinks, binaries, a long `SKILL.md` and scripts over 20 KB.
 - Skill `README.md`, `evals/evals.json` (5 trigger, 3 non-trigger prompts and quality criteria), edge cases for empty repositories and several products.
+- `references/repository-signals.md`: what to look for in a repository and where it goes, with the related SWEBOK Guide v4.0 section numbers (cited, not reproduced) — business parameters, feature flags, background work, permissions, sensitive data, acceptance criteria from tests, skipped tests, deployment, contracts, dependencies and licences, known debt, recorded intent, analytics, ownership.
+- Template sections: *Observed acceptance criteria* and *Variants, flags and parameters* (features), *States*, *Permissions* and *Sensitive data* (domain), *Deployment and environments* and *Known debt* (architecture), owners in the overview; a *Criticality* column for features; rules as trigger, preconditions, outcome and exceptions.
+- The Validator reviews in four checks: correctness, consistency, traceability, completeness.
+- `scripts/history.py` (standard library, read-only `git log`): commits, churn, fix commits, ticket references, number of authors and last change per module, for *Regression hotspots*. It reports measured facts, not a risk score, excludes the baseline, the skill, vendored folders and lockfiles, and never prints author identities. Allowed without asking, like `check.py`.
+- The order-approval example follows the new sections; tests check that it covers every template section and that the signals reference points to sections that exist.
 - Tests for packaging, frontmatter, references inside the skill and evals.
 
 ### Known incompatibilities

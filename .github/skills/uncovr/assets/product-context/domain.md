@@ -11,9 +11,21 @@
 Add only relevant entities, with cardinality when verified.
 
 ## Rules
-| Rule ID | When | Then | Exceptions | Evidence claim | Business validation |
-| --- | --- | --- | --- | --- | --- |
-| Pending | Unknown | Unknown | Unknown | Pending | Pending |
+| Rule ID | Trigger | Preconditions | Outcome | Exceptions | Evidence claim | Business validation |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pending | Unknown | Unknown | Unknown | Unknown | Pending | Pending |
 
-## States and permissions
-Add state transitions or permission matrices when meaningful to product evolution.
+## States
+States and allowed transitions, when meaningful to product evolution.
+
+## Permissions
+| Role | Action | Allowed | Condition | Evidence claim |
+| --- | --- | --- | --- | --- |
+| Not yet reviewed | | | | |
+
+## Sensitive data
+| Entity.field | Category | Stored in | Retention or deletion | Evidence claim |
+| --- | --- | --- | --- | --- |
+| Not yet reviewed | | | | |
+
+Field names and categories only; never values.

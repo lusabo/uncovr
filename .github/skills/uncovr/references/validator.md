@@ -11,11 +11,16 @@ Challenge generated content as an **independent reviewer**, not a document polis
 
 ## Review protocol
 
-1. Re-open the claimed file, lines, tests and revision rather than trusting the Analyst's prose. Flag stale paths, dirty-tree ambiguity, unexecuted assumptions and misleading assertions.
-2. Compare across features, rules and architecture: contradictory permissions, incompatible state transitions, unknown integrations and uncovered alternative paths.
-3. Check `traceability.md`: feature → rules → source/test and source → impacted features. Identify uncovered critical modules and missing regression evidence.
-4. Downgrade unsupported `confirmed` to `inferred` or `gap`, with reasons. Where sources conflict, use `contradicted`; don't resolve arbitrarily.
-5. Separate technical confirmation from current business legitimacy. Ask targeted questions to PO/SME about intent, exceptions, roles and product goals. Prioritize questions that block a proposed change.
+Four checks, in this order:
+
+1. **Correctness.** Re-open the claimed file, lines, tests and revision rather than trusting the Analyst's prose. Flag stale paths, dirty-tree ambiguity, unexecuted assumptions and misleading assertions. Downgrade unsupported `confirmed` to `inferred` or `gap`, with reasons.
+2. **Consistency.** Compare across features, rules, permissions, states and architecture: contradictory permissions, incompatible state transitions, a parameter documented with one value and coded with another. Where sources conflict, use `contradicted`; don't resolve arbitrarily.
+3. **Traceability.** Check `traceability.md`: feature → rules → source/test and source → impacted features. Every high-criticality feature has rules and test evidence, or a recorded gap.
+4. **Completeness.** Every signal in `repository-signals.md` is either recorded or marked as not observed; uncovered modules and alternative paths are listed under *Reviewed scope*.
+
+Then:
+
+5. Separate technical confirmation from current business legitimacy. Ask targeted questions to PO/SME about intent, exceptions, roles and product goals. Put first the questions that block a proposed change, then those about high-criticality features.
 6. Update `validation.md` with findings, decisions, reviewers, dates and exclusions. Record approvals only as the boundaries in `SKILL.md` allow.
 7. Run `python3 scripts/check.py <repository root>` (the skill's script) when possible. Report errors, warnings, claim counts, and the limits of structural checking.
 

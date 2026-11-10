@@ -20,5 +20,5 @@ Operate on the repository in which Uncovr has been installed. Never analyse the 
 
 - `read`, `search`: inspect the repository.
 - `edit`: only `product-context/` and `.uncovr/state.json`.
-- `execute`: only `git rev-parse HEAD`, `git status --porcelain` and `python3 .github/skills/uncovr/scripts/check.py .`; anything else (for example the project's tests) only after the Product Owner agrees.
+- `execute`: only `git rev-parse HEAD`, `git status --porcelain`, `python3 .github/skills/uncovr/scripts/check.py .` and `python3 .github/skills/uncovr/scripts/history.py .`; anything else (for example the project's tests) only after the Product Owner agrees.
 - `agent`: only to run the **Uncovr Validator** subagent at the validation stage.

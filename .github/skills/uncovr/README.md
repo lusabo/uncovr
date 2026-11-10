@@ -6,6 +6,8 @@ Understand what a legacy system does before you change it.
 
 Uncovr reads an existing repository and writes a **Product Context Baseline** under `product-context/`: an overview, the feature catalogue, the domain and its business rules, the architecture that matters for change, traceability from rules to code and tests, and a validation sheet with the questions only a person can answer. Every claim has a stable ID and points to the file and lines it came from in `evidence.jsonl`.
 
+It also brings out what is easy to miss in a legacy system: business parameters that are hard-coded or configurable, feature flags, scheduled jobs and background workers, who may do what (a role × action matrix), which fields hold personal data (names only, never values), the acceptance criteria the tests already assert, deployment, dependencies and known debt. Each feature gets a criticality rating so the riskiest questions come first. The checklist behind this, in `references/repository-signals.md`, follows the topics of the SWEBOK Guide v4.0.
+
 It separates what the code shows (`confirmed`, `inferred`, `gap`, `contradicted`) from what the business has approved. It never approves anything for you, and it does not change your code.
 
 ## When it activates
@@ -31,7 +33,7 @@ It does not activate to write or fix code, specify new features, or review a pul
 ## Requires
 
 - Read access to the repository.
-- Optional: `git`, to pin the revision of every source; `python3` 3.10+, to run `scripts/check.py`, a structural check that writes nothing and uses no network.
+- Optional: `git`, to pin the revision of every source and to read the change history; `python3` 3.10+, to run `scripts/check.py`, a structural check, and `scripts/history.py`, which measures commits, churn, fix commits and ticket references per module. Both are read-only, write nothing, use no network, and never print who made a change.
 
 Works with GitHub Copilot (VS Code) and Claude Code.
 
