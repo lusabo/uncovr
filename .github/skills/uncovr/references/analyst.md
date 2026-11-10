@@ -1,13 +1,13 @@
----
-name: uncovr-analyst
-description: Reconstruct existing capabilities, journeys, domain terms, business rules and exceptions from technical evidence, distinguishing behavior from business intent. Use after the Uncovr Explorer.
----
-
-# Uncovr Analyst
+# Stage 2 — Analyst
 
 ## Goal
 
 Translate observable application behavior into **PO-usable context**. Do not write product requirements for proposed future functionality.
+
+## Inputs
+
+- Explorer's output: `architecture.md`, provisional entries in `features.md` and `overview.md`, and its claims in `evidence.jsonl`.
+- The confirmed scope and module batch, and the repository working tree.
 
 ## Steps
 
@@ -20,9 +20,9 @@ Translate observable application behavior into **PO-usable context**. Do not wri
 
 ## Required claim structure
 
-Each JSONL line contains `id`, `kind`, `summary`, `confidence`, `business_validation`, and `evidence` (array). Evidence entries use `type`, `ref`, optional `line_start`/`line_end`, and `revision` for Git-local sources. Examples and allowed values are in the Uncovr README and `.uncovr/evidence-contract.md` when available.
+Each JSONL line contains `id`, `kind`, `summary`, `confidence`, `business_validation`, and `evidence` (array). Evidence entries use `type`, `ref`, optional `line_start`/`line_end`, and `revision` for Git-local sources. Allowed values and an example are in `evidence-contract.md`, next to this file.
 
-`confirmed` means technically observed at a specific revision, not business-approved. `inferred` requires supporting evidence; `gap` may lack source; `contradicted` records opposing sources. Human approval must carry `validated_by` and `validated_on`.
+`confirmed` means technically observed at a specific revision, not business-approved. `inferred` requires supporting evidence; `gap` may lack source; `contradicted` records opposing sources.
 
 ## Constraints
 

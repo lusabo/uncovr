@@ -1,0 +1,27 @@
+{
+  "skill": "uncovr",
+  "how_to_run": "Start a new chat with the skill available and no mention of its name. Send each prompt from the root of a repository. Count whether the skill is loaded. Target: at least 4 of 5 should_trigger, at most 1 of 3 should_not_trigger. Then run the quality case below 3 to 5 times and compare with its expected baseline.",
+  "should_trigger": [
+    "I inherited this codebase and nobody documented it. What does this system actually do?",
+    "Before we change the approval flow, map the business rules the code enforces today.",
+    "Rebuild the product context for this legacy app so the PO can plan the next version.",
+    "Which features and rules would be affected if we let managers delegate approvals?",
+    "Extract the domain model and the business rules from this repository, with sources."
+  ],
+  "should_not_trigger": [
+    "Fix the failing test in tests/test_requests.py.",
+    "Write a spec for a new delegation feature.",
+    "Review this pull request for bugs."
+  ],
+  "quality": {
+    "case": "examples/order-approval/cases.json",
+    "input": "A copy of examples/order-approval/app/ as the repository, scope confirmed as the whole repository.",
+    "pass_when": [
+      "Every claim in the case appears with the expected confidence, or an equivalent claim with the same evidence.",
+      "BR-002 is left contradicted, not resolved.",
+      "No claim has business_validation approved.",
+      "validation.md asks about BR-002, BR-004 and F-003, with BR-002 first.",
+      "The run stops at the scope checkpoint and at the baseline-review checkpoint."
+    ]
+  }
+}

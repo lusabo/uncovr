@@ -22,17 +22,16 @@ source code + tests + config + Git history
         future discovery / impact analysis
 ```
 
-These are **four logical agent roles**, not four simultaneously-running services. By default, the host agent follows the skills sequentially. A single session is sufficient for a small repository; larger codebases should be reviewed module by module and resumed using `.uncovr/state.json`.
+These are **four logical agent roles** in one skill, not four simultaneously-running services. The agent follows `SKILL.md` and its `references/` sequentially; the Validator runs in a separate context when the agent supports subagents (in VS Code, the `Uncovr Validator` agent). The order and the two checkpoints (scope, baseline review) are followed by instruction; no engine enforces them. A single session is sufficient for a small repository; larger codebases should be reviewed module by module and resumed using `.uncovr/state.json`.
 
 ## Distribution
 
-- `.github/skills/uncovr-{orchestrator,explorer,analyst,validator}/SKILL.md`: portable Agent Skills, intentionally using only a minimal frontmatter contract.
-- `.github/agents/uncovr.agent.md`: optional explicit entry point in compatible GitHub Copilot clients.
-- `uncovr.py`: standard-library CLI; installs skills and scaffolds context; checks structured evidence without executing application code.
-- `templates/product-context`: six human-readable documents and one evidence index.
-- `docs/`: contracts and examples for maintainers. During installation, the evidence contract is copied into `.uncovr/evidence-contract.md`.
+- `.github/skills/uncovr/`: the single source of the skill — `SKILL.md`, `references/`, `assets/`, `scripts/check.py`, `examples/`, `evals/`. Paths inside it are relative to the skill, so it works wherever it is installed or served.
+- `.github/agents/uncovr.agent.md` and `uncovr-validator.agent.md`: VS Code only; entry point and Validator subagent.
+- `uncovr.py`: standard-library CLI. `install` copies the skill (without `examples/` and `evals/`) and the agents into a repository and records `.uncovr/manifest.json`; `status` reports drift; `check` reuses `scripts/check.py`; `pack` writes `dist/uncovr.zip` for the Agensi marketplace (one top folder, text only; agents excluded, since Agensi sells skills only).
+- `docs/`: architecture, acceptance and an example walkthrough for maintainers.
 
-No database, API server, hosted LLM, MCP server, project-code mutation, or framework-specific CLI is required for v0.1. Agent model inference and repository traversal depend on the user's chosen agent runtime.
+No database, API server, hosted LLM, MCP server, project-code mutation, or framework-specific CLI is required for v0.3. Agent model inference and repository traversal depend on the user's chosen agent runtime.
 
 ## State versus product knowledge
 

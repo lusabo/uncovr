@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
-"""Uncovr: install and structurally validate evidence-first product context."""
+"""Uncovr: install, check and package the evidence-first product context skill."""
 from __future__ import annotations
 
 import argparse
-from collections import Counter
+import hashlib
+import importlib.util
 import json
 from pathlib import Path
-import re
 import shutil
 import sys
+import zipfile
 
-VERSION = "0.1.0"
-ARTIFACTS = (
-    "overview.md", "features.md", "domain.md",
-    "architecture.md", "traceability.md", "validation.md",
-)
-CONFIDENCE = {"confirmed", "inferred", "gap", "contradicted"}
-KINDS = {"feature", "business_rule", "architecture", "constraint", "decision", "assumption"}
-BUSINESS = {"pending", "approved", "rejected", "not_applicable"}
-LOCAL_SOURCES = {"code", "test", "config"}
-OTHER_SOURCES = {"git", "runtime", "document", "interview"}
-CLAIM_ID = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]{3,}$")
-REVISION = re.compile(r"^[0-9a-f]{7,40}$")
+VERSION = "0.3.0"
+MANIFEST = ".uncovr/manifest.json"
+SKILL_NAME = "uncovr"
+SKILL_DIR = ".github/skills/uncovr"
+INSTALL_SKIP = ("examples", "evals")
+SKILL_MD_MAX_LINES = 500
+SCRIPT_MAX_BYTES = 20_000
+
+
+def _load_check():
+    path = Path(__file__).resolve().parent / SKILL_DIR / "scripts" / "check.py"
+    spec = importlib.util.spec_from_file_location("uncovr_check", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# The structural check ships inside the skill; this CLI reuses it rather than keeping a copy.
+_check = _load_check()
+ARTIFACTS = _check.ARTIFACTS
+load_claims = _check.load_claims
+validate = _check.validate
+check = _check.check
 
 
 def _copy_if_missing(source: Path, destination: Path, created: list[str]) -> None:
@@ -32,32 +44,64 @@ def _copy_if_missing(source: Path, destination: Path, created: list[str]) -> Non
     created.append(str(destination))
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _source_root() -> Path | None:
+    root = Path(__file__).resolve().parent
+    return root if (root / SKILL_DIR / "SKILL.md").is_file() else None
+
+
+def _package_files(skill: Path) -> list[Path]:
+    """Files of the skill folder, without hidden files or caches."""
+    return [
+        path for path in sorted(skill.rglob("*"))
+        if path.is_file() and not any(
+            part.startswith(".") or part == "__pycache__" for part in path.relative_to(skill).parts
+        )
+    ]
+
+
+def _managed_files(source_root: Path) -> list[tuple[Path, str]]:
+    """Package files that Uncovr installs and owns, paired with their path in a target."""
+    skill = source_root / SKILL_DIR
+    pairs = [
+        (path, f"{SKILL_DIR}/{path.relative_to(skill).as_posix()}")
+        for path in _package_files(skill)
+        if path.relative_to(skill).parts[0] not in INSTALL_SKIP
+    ]
+    pairs += [
+        (path, path.relative_to(source_root).as_posix())
+        for path in sorted((source_root / ".github" / "agents").glob("*.agent.md"))
+    ]
+    return pairs
+
+
 def install(target: Path) -> int:
     """Install skills and blank context artifacts without replacing user files."""
     target = target.expanduser().resolve()
     if not target.is_dir():
         print(f"Target directory does not exist: {target}", file=sys.stderr)
         return 2
-    source_root = Path(__file__).resolve().parent
-    if not (source_root / "templates" / "product-context").is_dir():
+    source_root = _source_root()
+    if source_root is None:
         print("Install must be run from the Uncovr source checkout.", file=sys.stderr)
         return 2
     created: list[str] = []
-    for skill in sorted((source_root / ".github" / "skills").iterdir()):
-        if skill.is_dir():
-            destination = target / ".github" / "skills" / skill.name
-            if not destination.exists():
-                shutil.copytree(skill, destination)
-                created.append(str(destination))
-    _copy_if_missing(
-        source_root / ".github" / "agents" / "uncovr.agent.md",
-        target / ".github" / "agents" / "uncovr.agent.md", created
-    )
-    for template in sorted((source_root / "templates" / "product-context").iterdir()):
+    managed = _managed_files(source_root)
+    for source, relative in managed:
+        _copy_if_missing(source, target / relative, created)
+    for template in sorted((source_root / SKILL_DIR / "assets" / "product-context").iterdir()):
         _copy_if_missing(template, target / "product-context" / template.name, created)
-    _copy_if_missing(source_root / "uncovr.py", target / ".uncovr" / "uncovr.py", created)
-    _copy_if_missing(source_root / "docs" / "evidence-contract.md",
-                     target / ".uncovr" / "evidence-contract.md", created)
+    manifest = target / MANIFEST
+    if not manifest.exists():
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({
+            "version": VERSION,
+            "files": {relative: _sha256(source) for source, relative in managed},
+        }, indent=2) + "\n", encoding="utf-8")
+        created.append(str(manifest))
     state = target / ".uncovr" / "state.json"
     if not state.exists():
         state.parent.mkdir(parents=True, exist_ok=True)
@@ -68,151 +112,92 @@ def install(target: Path) -> int:
         created.append(str(state))
     print(f"Uncovr installed: {len(created)} new paths. Existing files were not overwritten.")
     print("In Copilot, select the Uncovr agent, then ask to reconstruct this repository.")
-    print("Structural check: python3 .uncovr/uncovr.py check .")
+    print(f"Structural check: python3 {SKILL_DIR}/scripts/check.py .")
     return 0
 
 
-def load_claims(root: Path) -> tuple[list[dict], list[str]]:
-    evidence_file = root / "product-context" / "evidence.jsonl"
-    errors: list[str] = []
-    claims: list[dict] = []
-    if not evidence_file.is_file():
-        return claims, ["Missing product-context/evidence.jsonl"]
-    for line_number, line in enumerate(evidence_file.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
+def pack_problems(skill: Path) -> list[str]:
+    """Reasons the skill folder would fail the marketplace's structure and file-type checks."""
+    problems: list[str] = []
+    if not (skill / "SKILL.md").is_file():
+        return ["SKILL.md missing"]
+    for path in sorted(skill.rglob("*")):
+        if path.is_symlink():
+            problems.append(f"{path.relative_to(skill).as_posix()}: symlink")
+    for path in _package_files(skill):
+        relative = path.relative_to(skill).as_posix()
         try:
-            record = json.loads(line)
-            if not isinstance(record, dict):
-                raise ValueError("record must be an object")
-            claims.append(record)
-        except ValueError as error:
-            errors.append(f"evidence.jsonl:{line_number}: {error}")
-    return claims, errors
-
-
-def validate(target: Path) -> tuple[list[str], list[str], Counter]:
-    """Perform structural checks; not an endorsement of semantic correctness."""
-    root = target.expanduser().resolve()
-    errors: list[str] = []
-    warnings: list[str] = []
-    counts: Counter = Counter()
-    context = root / "product-context"
-    documents: dict[str, str] = {}
-    for filename in ARTIFACTS:
-        path = context / filename
-        if not path.is_file():
-            errors.append(f"Missing product-context/{filename}")
+            text = path.read_text(encoding="utf-8")
+        except UnicodeError:
+            problems.append(f"{relative}: not a text file")
             continue
-        content = path.read_text(encoding="utf-8")
-        documents[filename] = content
-        if "<!-- TODO:" in content:
-            warnings.append(f"{filename} still contains its scaffold placeholder")
-    claims, parse_errors = load_claims(root)
-    errors.extend(parse_errors)
-    ids: set[str] = set()
-    for row, record in enumerate(claims, 1):
-        claim = record.get("id")
-        where = f"evidence.jsonl:record {row}"
-        if not isinstance(claim, str) or not CLAIM_ID.fullmatch(claim):
-            errors.append(f"{where}: invalid claim id")
-            continue
-        if claim in ids:
-            errors.append(f"{where}: duplicate claim id {claim}")
-        ids.add(claim)
-        kind = record.get("kind")
-        confidence = record.get("confidence")
-        business = record.get("business_validation")
-        if kind not in KINDS:
-            errors.append(f"{where}: invalid kind for {claim}")
-        if confidence not in CONFIDENCE:
-            errors.append(f"{where}: invalid confidence for {claim}")
-        else:
-            counts[confidence] += 1
-        if business not in BUSINESS:
-            errors.append(f"{where}: invalid business_validation for {claim}")
-        if not isinstance(record.get("summary"), str) or not record["summary"].strip():
-            errors.append(f"{where}: missing summary for {claim}")
-        if business == "approved" and not (
-            isinstance(record.get("validated_by"), str) and record["validated_by"].strip()
-            and isinstance(record.get("validated_on"), str) and record["validated_on"].strip()
-        ):
-            errors.append(f"{where}: approved claim {claim} needs validated_by and validated_on")
-        evidence = record.get("evidence")
-        if not isinstance(evidence, list):
-            errors.append(f"{where}: evidence must be an array for {claim}")
-            continue
-        if confidence in {"confirmed", "inferred", "contradicted"} and not evidence:
-            errors.append(f"{where}: {claim} has no evidence")
-        if confidence == "confirmed" and not any(
-            isinstance(item, dict) and item.get("type") in {"code", "test", "config", "runtime"}
-            for item in evidence
-        ):
-            errors.append(f"{where}: confirmed {claim} lacks technical evidence")
-        for index, item in enumerate(evidence, 1):
-            prefix = f"{where}: {claim} evidence {index}"
-            if not isinstance(item, dict):
-                errors.append(f"{prefix} must be an object")
-                continue
-            evidence_type = item.get("type")
-            ref = item.get("ref")
-            if evidence_type not in LOCAL_SOURCES | OTHER_SOURCES:
-                errors.append(f"{prefix}: invalid type")
-            if not isinstance(ref, str) or not ref.strip():
-                errors.append(f"{prefix}: missing ref")
-                continue
-            if evidence_type in LOCAL_SOURCES:
-                relative = Path(ref)
-                absolute = (root / relative).resolve()
-                if relative.is_absolute() or (absolute != root and root not in absolute.parents):
-                    errors.append(f"{prefix}: reference escapes repository")
-                    continue
-                if not absolute.is_file():
-                    errors.append(f"{prefix}: missing local source {ref}")
-                    continue
-                start, end = item.get("line_start"), item.get("line_end")
-                if (start is None) != (end is None):
-                    errors.append(f"{prefix}: both line_start and line_end are required")
-                elif start is not None:
-                    if type(start) is not int or type(end) is not int or start < 1 or end < start:
-                        errors.append(f"{prefix}: invalid line range")
-                    else:
-                        try:
-                            line_count = len(absolute.read_text(encoding="utf-8").splitlines())
-                            if end > line_count:
-                                errors.append(f"{prefix}: line range exceeds {ref} ({line_count} lines)")
-                        except UnicodeError:
-                            warnings.append(f"{prefix}: could not inspect non-text source {ref}")
-                revision = item.get("revision")
-                if not isinstance(revision, str) or not REVISION.fullmatch(revision):
-                    warnings.append(f"{prefix}: pin a Git revision for reproducible evidence")
-        if not any(claim in doc for doc in documents.values()):
-            warnings.append(f"{claim} is not referenced in any of the six Markdown artifacts")
-    if not claims:
-        warnings.append("No evidence claims yet; the baseline is not ready for use")
-    return errors, warnings, counts
+        if relative == "SKILL.md" and len(text.splitlines()) >= SKILL_MD_MAX_LINES:
+            problems.append(f"SKILL.md: {len(text.splitlines())} lines (keep under {SKILL_MD_MAX_LINES})")
+        if relative.startswith("scripts/") and len(text.encode("utf-8")) > SCRIPT_MAX_BYTES:
+            problems.append(f"{relative}: larger than {SCRIPT_MAX_BYTES} bytes")
+    return problems
 
 
-def check(target: Path) -> int:
-    if not target.is_dir():
-        print(f"Target directory does not exist: {target}", file=sys.stderr)
+def pack(out: Path) -> int:
+    """Write <out>/uncovr.zip: one top folder with SKILL.md at its root, text files only."""
+    source_root = _source_root()
+    if source_root is None:
+        print("Pack must be run from the Uncovr source checkout.", file=sys.stderr)
         return 2
-    errors, warnings, counts = validate(target)
-    for error in errors:
-        print(f"ERROR: {error}")
-    for warning in warnings:
-        print(f"WARN: {warning}")
-    print(f"Claims: {sum(counts.values())} | confirmed={counts['confirmed']} "
-          f"inferred={counts['inferred']} gap={counts['gap']} "
-          f"contradicted={counts['contradicted']}")
-    if errors:
-        print("INVALID: fix structural errors before review.")
+    skill = source_root / SKILL_DIR
+    problems = pack_problems(skill)
+    for problem in problems:
+        print(f"ERROR: {problem}")
+    if problems:
         return 1
-    if warnings:
-        print("STRUCTURE VALID WITH WARNINGS: human validation remains required.")
-        return 0
-    print("STRUCTURE VALID: this does not certify business correctness.")
+    out = out.expanduser().resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    archive = out / f"{SKILL_NAME}.zip"
+    files = _package_files(skill)
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in files:
+            # Fixed timestamp and mode keep the archive identical for identical sources.
+            info = zipfile.ZipInfo(f"{SKILL_NAME}/{path.relative_to(skill).as_posix()}", (1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, path.read_bytes())
+    print(f"Packed {len(files)} files into {archive}")
     return 0
+
+
+def install_drift(root: Path) -> list[str]:
+    """Differences between the installed files, their manifest and, from a source checkout, the package."""
+    root = root.expanduser().resolve()
+    manifest = root / MANIFEST
+    if not manifest.is_file():
+        return [f"no {MANIFEST}: installed before 0.2.0 or by hand; versions cannot be compared"]
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        files = data["files"]
+        if not isinstance(files, dict):
+            raise ValueError("files must be an object")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return [f"invalid {MANIFEST}: {error}"]
+    notes: list[str] = []
+    if data.get("version") != VERSION:
+        notes.append(f"installed version {data.get('version')} differs from this Uncovr ({VERSION})")
+    source_root = _source_root()
+    package = {relative: source for source, relative in _managed_files(source_root)} if source_root else {}
+    for relative, digest in sorted(files.items()):
+        path = (root / relative).resolve()
+        if root not in path.parents:
+            notes.append(f"{relative}: path escapes repository")
+            continue
+        if not path.is_file():
+            notes.append(f"{relative}: missing")
+            continue
+        if _sha256(path) != digest:
+            notes.append(f"{relative}: modified locally")
+        if relative in package and _sha256(package[relative]) != digest:
+            notes.append(f"{relative}: the package has a different version")
+    for relative in sorted(set(package) - set(files)):
+        notes.append(f"{relative}: in the package, not installed")
+    return notes
 
 
 def status(target: Path) -> int:
@@ -231,6 +216,11 @@ def status(target: Path) -> int:
     print(f"Baseline revision: {data.get('baseline_revision') or 'unrecorded'}")
     print(f"Reviewed modules: {len(data.get('modules_reviewed', []))}")
     print(f"Evidence: {dict(counts)}")
+    drift = install_drift(root)
+    for note in drift:
+        print(f"INSTALL: {note}")
+    if not drift:
+        print("INSTALL: files match the manifest")
     print("NOTE: status is descriptive, not a semantic quality certification.")
     return 0
 
@@ -242,8 +232,10 @@ def main() -> int:
     for name in ("install", "check", "status"):
         command = sub.add_parser(name)
         command.add_argument("target", nargs="?", default=".")
+    sub.add_parser("pack", help="write the marketplace ZIP").add_argument("target", nargs="?", default="dist")
     args = parser.parse_args()
-    return {"install": install, "check": check, "status": status}[args.command](Path(args.target))
+    commands = {"install": install, "check": check, "status": status, "pack": pack}
+    return commands[args.command](Path(args.target))
 
 
 if __name__ == "__main__":

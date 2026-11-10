@@ -1,13 +1,13 @@
----
-name: uncovr-validator
-description: Review Uncovr product context claims against source evidence, detect overconfidence, contradictions and uncovered behavior, and formulate human validation questions. Use as the last stage of Uncovr reconstruction.
----
-
-# Uncovr Validator
+# Stage 3 — Validator
 
 ## Goal
 
-Challenge generated content as an **independent reviewer**, not a document polisher. Structural tool checks are necessary but not sufficient.
+Challenge generated content as an **independent reviewer**, not a document polisher. Structural tool checks are necessary but not sufficient. Run in a context separate from the analysis whenever the agent allows it (`SKILL.md`, step 4).
+
+## Inputs
+
+- The six artifacts under `product-context/` and `evidence.jsonl` as written by the Explorer and Analyst.
+- The recorded Git HEAD SHA, the confirmed scope, and the repository working tree.
 
 ## Review protocol
 
@@ -16,8 +16,8 @@ Challenge generated content as an **independent reviewer**, not a document polis
 3. Check `traceability.md`: feature → rules → source/test and source → impacted features. Identify uncovered critical modules and missing regression evidence.
 4. Downgrade unsupported `confirmed` to `inferred` or `gap`, with reasons. Where sources conflict, use `contradicted`; don't resolve arbitrarily.
 5. Separate technical confirmation from current business legitimacy. Ask targeted questions to PO/SME about intent, exceptions, roles and product goals. Prioritize questions that block a proposed change.
-6. Update `validation.md` with findings, decisions, reviewers, dates and exclusions. Change `business_validation` to `approved` only after an explicit human decision, recording `validated_by` and `validated_on`.
-7. Execute `python3 .uncovr/uncovr.py check .` when possible. Report errors, warnings, claim counts, and the limits of structural checking.
+6. Update `validation.md` with findings, decisions, reviewers, dates and exclusions. Record approvals only as the boundaries in `SKILL.md` allow.
+7. Run `python3 scripts/check.py <repository root>` (the skill's script) when possible. Report errors, warnings, claim counts, and the limits of structural checking.
 
 ## Review verdicts
 
@@ -26,4 +26,8 @@ Challenge generated content as an **independent reviewer**, not a document polis
 - **Contradictory**: two sources disagree; PO and engineering should arbitrate.
 - **Not reviewed**: no inspection performed; never imply coverage.
 
-Never report a percentage of "business correctness" from Markdown completeness, claim counts, or an LLM score. Never close critical questions on the user's behalf.
+Never report a percentage of "business correctness" from Markdown completeness, claim counts, or an LLM score.
+
+## Completion
+
+Every claim in scope has been re-opened and carries one of the verdicts above; `validation.md` lists the findings and the prioritised questions; the structural check has run (or its absence is recorded). Hand back for the baseline-review checkpoint (`SKILL.md`, step 6).
