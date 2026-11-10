@@ -23,6 +23,7 @@ def load_script(name):
 
 
 history = load_script("history")
+okf = load_script("okf")
 
 
 class UncovrTests(unittest.TestCase):
@@ -272,6 +273,100 @@ class HistoryTests(unittest.TestCase):
             self.assertNotIn("ana@example.com", rendered)
             self.assertNotIn("Ana", rendered)
             self.assertEqual(before, sorted(p.name for p in root.rglob("*") if ".git" not in p.parts))
+
+
+class OkfExportTests(unittest.TestCase):
+    """scripts/okf.py: the baseline as an OKF v0.2 bundle for the wiki the user chose."""
+
+    AT = "2026-11-10T12:00:00Z"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        shutil.copytree(FIXTURE / "app", self.root, dirs_exist_ok=True)
+        shutil.copytree(FIXTURE / "expected", self.root / "product-context")
+        self.wiki = self.root / "product-context" / "wiki"
+
+    def export(self, target, **kwargs):
+        return okf.export(self.root, target, at=self.AT, **kwargs)
+
+    def test_every_target_produces_a_conformant_bundle(self):
+        for target in okf.TARGETS:
+            with self.subTest(target=target):
+                bundle, _ = self.export(target)
+                self.assertEqual(okf.conformance(bundle), [])
+                self.assertIn('okf_version: "0.2"', (bundle / "index.md").read_text(encoding="utf-8"))
+                for page in ("rules/br-002.md", "features/f-001.md", "architecture/arch-001.md", "domain.md"):
+                    self.assertTrue((bundle / page).is_file(), page)
+
+    def test_links_follow_the_target(self):
+        self.export("obsidian")
+        domain = (self.wiki / "domain.md").read_text(encoding="utf-8")
+        self.assertIn("[BR-001](rules/br-001.md)", domain)
+        rule = (self.wiki / "rules" / "br-001.md").read_text(encoding="utf-8")
+        self.assertIn('aliases: ["BR-001"]', rule)
+        self.assertIn("[Domain Model](../domain.md)", rule)
+        self.export("knowledge-catalog")
+        domain = (self.wiki / "domain.md").read_text(encoding="utf-8")
+        self.assertIn("[BR-001](/rules/br-001.md)", domain)
+        self.assertNotIn("aliases", (self.wiki / "rules" / "br-001.md").read_text(encoding="utf-8"))
+
+    def test_claim_carries_provenance_trust_and_uncovr_fields(self):
+        evidence = self.root / "product-context" / "evidence.jsonl"
+        records = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
+        for record in records:
+            if record["id"] == "BR-001":
+                record.update(business_validation="approved", validated_by="Luciano Borges",
+                              validated_on="2026-11-10")
+        evidence.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+        self.export("mkdocs", source_url="https://example.com/repo/{revision}/{path}#L{start}-{end}")
+        approved = (self.wiki / "rules" / "br-001.md").read_text(encoding="utf-8")
+        self.assertIn('status: "stable"', approved)
+        self.assertIn('verified: { by: "human:luciano-borges", at: "2026-11-10T00:00:00Z" }', approved)
+        self.assertIn('generated: { by: "uncovr/', approved)
+        contradicted = (self.wiki / "rules" / "br-002.md").read_text(encoding="utf-8")
+        self.assertIn('status: "draft"', contradicted)
+        self.assertIn('confidence: "contradicted"', contradicted)
+        self.assertIn("[^s1]: code: src/requests.py", contradicted)
+        self.assertTrue(okf.GENERATOR.endswith(uncovr.VERSION))
+
+    def test_source_urls_need_a_revision_and_a_template(self):
+        claim = {"evidence": [{"type": "code", "ref": "src/a.py", "line_start": 2, "line_end": 4}]}
+        template = "https://github.com/o/r/blob/{revision}/{path}#L{start}-L{end}"
+        self.assertEqual(okf.source_entries(claim, template, "abc1234")[0]["resource"],
+                         "https://github.com/o/r/blob/abc1234/src/a.py#L2-L4")
+        self.assertEqual(okf.source_entries(claim, None, None)[0]["resource"], "src/a.py#L2-L4")
+
+    def test_mkdocs_config_only_for_mkdocs_and_never_over_a_foreign_one(self):
+        config = self.root / "product-context" / "mkdocs.yml"
+        self.export("obsidian")
+        self.assertFalse(config.exists())
+        self.export("mkdocs")
+        self.assertIn("docs_dir: wiki", config.read_text(encoding="utf-8"))
+        config.write_text("site_name: mine\n", encoding="utf-8")
+        _, notes = self.export("mkdocs")
+        self.assertEqual(config.read_text(encoding="utf-8"), "site_name: mine\n")
+        self.assertTrue(any("not Uncovr's" in note for note in notes))
+
+    def test_rebuild_keeps_the_log_and_refuses_a_foreign_folder(self):
+        self.export("obsidian")
+        log = self.wiki / "log.md"
+        log.write_text("# Update Log\n\n## 2026-01-01\n* **Update**: earlier export.\n", encoding="utf-8")
+        self.export("obsidian")
+        text = log.read_text(encoding="utf-8")
+        self.assertLess(text.index("## 2026-11-10"), text.index("## 2026-01-01"))
+        shutil.rmtree(self.wiki)
+        self.wiki.mkdir()
+        (self.wiki / "notes.md").write_text("mine\n", encoding="utf-8")
+        with self.assertRaises(RuntimeError):
+            self.export("obsidian")
+        self.assertTrue((self.wiki / "notes.md").is_file())
+
+    def test_sources_outside_the_wiki_are_untouched(self):
+        before = {p: p.read_bytes() for p in (self.root / "product-context").glob("*.*")}
+        self.export("knowledge-catalog")
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
 
 
 class MarketplacePackageTests(unittest.TestCase):

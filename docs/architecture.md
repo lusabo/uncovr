@@ -26,7 +26,7 @@ These are **four logical agent roles** in one skill, not four simultaneously-run
 
 ## Distribution
 
-- `.github/skills/uncovr/`: the single source of the skill — `SKILL.md`, `references/` (stages, evidence contract, repository signals), `assets/`, `scripts/check.py` and `scripts/history.py`, `examples/`, `evals/`. Paths inside it are relative to the skill, so it works wherever it is installed or served.
+- `.github/skills/uncovr/`: the single source of the skill — `SKILL.md`, `references/` (stages, evidence contract, repository signals), `assets/`, `scripts/check.py`, `scripts/history.py` and `scripts/okf.py`, `examples/`, `evals/`. Paths inside it are relative to the skill, so it works wherever it is installed or served.
 - `.github/agents/uncovr.agent.md` and `uncovr-validator.agent.md`: VS Code only; entry point and Validator subagent.
 - `uncovr.py`: standard-library CLI. `install` copies the skill (without `examples/` and `evals/`) and the agents into a repository and records `.uncovr/manifest.json`; `status` reports drift; `check` reuses `scripts/check.py`; `pack` writes `dist/uncovr.zip` for the Agensi marketplace (one top folder, text only; agents excluded, since Agensi sells skills only).
 - `docs/`: architecture, acceptance and an example walkthrough for maintainers.
@@ -35,7 +35,9 @@ No database, API server, hosted LLM, MCP server, project-code mutation, or frame
 
 ## State versus product knowledge
 
-`.uncovr/state.json` is an operational checkpoint, not a canonical product fact. It holds phase, baseline revision, inspected modules, and last validation date. The six Markdown artifacts are the reader-facing context; `evidence.jsonl` is the canonical claim provenance index. Git versioning provides history.
+`.uncovr/state.json` is an operational checkpoint, not a canonical product fact. It holds phase, baseline revision, inspected modules, last validation date and the chosen wiki target. The six Markdown artifacts are the reader-facing context; `evidence.jsonl` is the canonical claim provenance index. Git versioning provides history.
+
+`product-context/wiki/` is a derived view: `scripts/okf.py` rebuilds it from the artifacts and `evidence.jsonl` as an Open Knowledge Format v0.2 bundle. Claim kind maps to the OKF `type`, evidence to `sources` with footnotes, a human approval to `verified` (`human:` actor), pending or approved to `status`; `confidence`, `business_validation` and the Git revision stay as extension keys, because OKF has no field for confidence and `stale_after` is a date, not a revision. The target — Obsidian, MkDocs or Google Knowledge Catalog — only changes link style, aliases and the MkDocs config. The export never publishes to a service.
 
 ## Limitations
 

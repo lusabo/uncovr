@@ -2,6 +2,15 @@
 
 All notable changes to Uncovr are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-11-10
+
+### Added
+
+- `scripts/okf.py`: publishes the baseline as an Open Knowledge Format v0.2 bundle in `product-context/wiki/` for the LLM wiki the user chose — Obsidian, MkDocs or Google Knowledge Catalog. The six documents get OKF frontmatter and links to one concept page per claim; each claim carries `type`, `sources` with footnotes, `generated`, `verified` (`human:` actor) when approved, `status`, and `confidence`, `business_validation` and `revision` as extension keys. Root and folder `index.md`, and a `log.md` kept across rebuilds.
+- Targets: Obsidian (relative links, claim IDs as aliases), MkDocs (relative links, `product-context/mkdocs.yml`, never over a foreign one), Knowledge Catalog (bundle-root links). Source links on GitHub at the baseline revision, or `--source-url` for other hosts.
+- The scope checkpoint asks for the wiki target and records it as `wiki_target` in `.uncovr/state.json`; the export runs after the structural check and again after approvals. It refuses to replace a `wiki/` folder it did not generate, and never publishes to a service.
+- Tests: OKF conformance for every target, link style, provenance and trust fields, source URLs, MkDocs config, log kept, foreign folder refused, sources untouched.
+
 ## [0.3.0] — 2026-11-10
 
 Ready for the Agensi marketplace.

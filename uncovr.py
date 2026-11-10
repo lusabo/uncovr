@@ -11,7 +11,7 @@ import shutil
 import sys
 import zipfile
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MANIFEST = ".uncovr/manifest.json"
 SKILL_NAME = "uncovr"
 SKILL_DIR = ".github/skills/uncovr"
@@ -107,7 +107,7 @@ def install(target: Path) -> int:
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text(json.dumps({
             "version": VERSION, "phase": "initialized", "baseline_revision": None,
-            "modules_reviewed": [], "last_validation": None
+            "modules_reviewed": [], "last_validation": None, "wiki_target": None
         }, indent=2) + "\n", encoding="utf-8")
         created.append(str(state))
     print(f"Uncovr installed: {len(created)} new paths. Existing files were not overwritten.")

@@ -4,16 +4,17 @@
 
 Uncovr focuses on **what exists, how it behaves, which rules and dependencies matter, what is uncertain, and what needs human validation**. It does not generate new production code or pretend that source code explains the business intent behind every decision.
 
-## What v0.3 contains
+## What v0.4 contains
 
 - **One Agent Skill, `uncovr`,** in `.github/skills/uncovr/`: the workflow in `SKILL.md`, the Explorer, Analyst and Validator stages in `references/`, artifact templates in `assets/`, a self-contained structural check in `scripts/`, a worked example in `examples/` and evals in `evals/`. The same folder is installed into VS Code and packaged for the Agensi marketplace.
 - **Two optional VS Code agents:** **Uncovr** as entry point and **Uncovr Validator**, run as a subagent so the review happens in a separate context.
 - **Six primary Markdown artifacts:** overview, feature catalog, domain, architecture, traceability, validation.
 - **One evidence index:** JSONL claims with stable IDs, source provenance, confidence and separately recorded business validation.
+- **Optional LLM wiki:** the baseline published as an Open Knowledge Format v0.2 bundle for Obsidian, MkDocs or Google Knowledge Catalog, chosen at the scope checkpoint.
 - **One standard-library Python CLI:** non-destructive installation with a manifest, structural checks, status and marketplace packaging.
 - **Unit tests, a reference case per AI stage and a CI workflow.**
 
-> v0.3 is a working scaffold and validation toolkit. Actual functional reconstruction requires an AI agent or human reviewer with access to the target repository. No real target system has yet been analysed with this package.
+> v0.4 is a working scaffold and validation toolkit. Actual functional reconstruction requires an AI agent or human reviewer with access to the target repository. No real target system has yet been analysed with this package.
 
 ## Quick start
 

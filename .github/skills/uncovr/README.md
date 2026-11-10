@@ -26,6 +26,18 @@ It does not activate to write or fix code, specify new features, or review a pul
 2. **Explore, analyse, validate.** It maps the system, reconstructs features and rules with evidence, then reviews the result — in a separate context when your agent supports subagents.
 3. **Review.** It stops with a summary and the questions for you. Nothing is marked approved until you say so.
 
+## Publish as an LLM wiki (optional)
+
+At the start you can choose a wiki: **Obsidian**, **MkDocs** or **Google Knowledge Catalog**. Uncovr then also writes `product-context/wiki/`, an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/open-knowledge-format) v0.2 bundle: the six documents plus one page per claim, linked to each other, with its sources, who verified it and whether it is still a draft. It is rebuilt from the baseline on every run, so corrections and approvals go to the baseline, not to the wiki.
+
+| Target | What you get | What you do next |
+| --- | --- | --- |
+| Obsidian | Relative links, claim IDs as aliases | Open `product-context/wiki` as a vault |
+| MkDocs | Relative links and `product-context/mkdocs.yml` | `mkdocs serve -f product-context/mkdocs.yml` |
+| Google Knowledge Catalog | Bundle-root links, OKF as the catalog ingests it | Push it with Knowledge Catalog's OKF tooling in your Google Cloud project |
+
+Uncovr never publishes to a service; the last step is yours.
+
 ## Example
 
 `examples/order-approval/` holds a small purchase-request app and the baseline a good run produces. One rule is deliberately contradictory — the code sets the approval limit at 5000, the README at 10 000 — and the expected baseline leaves it `contradicted` and asks you about it, instead of picking one.
@@ -33,7 +45,7 @@ It does not activate to write or fix code, specify new features, or review a pul
 ## Requires
 
 - Read access to the repository.
-- Optional: `git`, to pin the revision of every source and to read the change history; `python3` 3.10+, to run `scripts/check.py`, a structural check, and `scripts/history.py`, which measures commits, churn, fix commits and ticket references per module. Both are read-only, write nothing, use no network, and never print who made a change.
+- Optional: `git`, to pin the revision of every source, read the change history and link sources on GitHub; `python3` 3.10+, to run `scripts/check.py`, a structural check, `scripts/history.py`, which measures commits, churn, fix commits and ticket references per module, and `scripts/okf.py`, which writes the wiki. None of them uses the network or prints who made a change; only `okf.py` writes, and only under `product-context/`.
 
 Works with GitHub Copilot (VS Code) and Claude Code.
 
