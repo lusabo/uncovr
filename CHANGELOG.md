@@ -2,6 +2,12 @@
 
 All notable changes to Uncovr are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The wiki exporter rejects a symlinked `product-context/` directory or `product-context/mkdocs.yml` before rebuilding or writing output, preventing writes and deletions outside the repository. Regression tests cover all wiki targets, existing output and dangling config links, and verify that rejected exports leave files unchanged.
+
 ## [0.4.0] — 2026-11-10
 
 ### Added

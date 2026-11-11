@@ -368,6 +368,55 @@ class OkfExportTests(unittest.TestCase):
         self.export("knowledge-catalog")
         self.assertEqual(before, {p: p.read_bytes() for p in before})
 
+    def test_export_refuses_symlinked_product_context(self):
+        context = self.root / "product-context"
+        original = self.root / "original-context"
+        context.rename(original)
+        for target in okf.TARGETS:
+            for existing_wiki in (False, True):
+                with self.subTest(target=target, existing_wiki=existing_wiki), tempfile.TemporaryDirectory() as tmp:
+                    outside = Path(tmp)
+                    shutil.copytree(original, outside, dirs_exist_ok=True)
+                    if existing_wiki:
+                        (outside / "wiki").mkdir()
+                        (outside / "wiki" / "index.md").write_text(okf.MARKER + "\n", encoding="utf-8")
+                        (outside / "wiki" / "notes.md").write_text("Keep this file.\n", encoding="utf-8")
+                    before = {path.relative_to(outside): path.read_bytes()
+                              for path in outside.rglob("*") if path.is_file()}
+                    context.symlink_to(outside, target_is_directory=True)
+                    try:
+                        with self.assertRaisesRegex(RuntimeError, r"product-context/.*symlink"):
+                            self.export(target)
+                        self.assertEqual(before, {path.relative_to(outside): path.read_bytes()
+                                                  for path in outside.rglob("*") if path.is_file()})
+                        self.assertTrue(context.is_symlink())
+                    finally:
+                        context.unlink()
+
+    def test_export_refuses_symlinked_mkdocs_config_before_rebuilding(self):
+        self.export("obsidian")
+        before = {path.relative_to(self.wiki): path.read_bytes()
+                  for path in self.wiki.rglob("*") if path.is_file()}
+        config = self.root / "product-context" / "mkdocs.yml"
+        for existing_target in (False, True):
+            with self.subTest(existing_target=existing_target), tempfile.TemporaryDirectory() as tmp:
+                outside = Path(tmp) / "mkdocs.yml"
+                content = okf.MKDOCS_MARKER + "\nsite_name: keep this\n"
+                if existing_target:
+                    outside.write_text(content, encoding="utf-8")
+                config.symlink_to(outside)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, r"mkdocs\.yml.*symlink"):
+                        self.export("mkdocs")
+                    self.assertEqual(outside.exists(), existing_target)
+                    if existing_target:
+                        self.assertEqual(outside.read_text(encoding="utf-8"), content)
+                    self.assertEqual(before, {path.relative_to(self.wiki): path.read_bytes()
+                                              for path in self.wiki.rglob("*") if path.is_file()})
+                    self.assertTrue(config.is_symlink())
+                finally:
+                    config.unlink()
+
 
 class MarketplacePackageTests(unittest.TestCase):
     """The skill folder as the marketplace receives it: one ZIP, one top folder, text only."""
