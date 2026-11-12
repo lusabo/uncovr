@@ -6,6 +6,8 @@ All notable changes to Uncovr are recorded here. The format follows [Keep a Chan
 
 ## [0.6.0] - 2026-11-12
 
+Published on Agensi as listing version 1.0 (Git tag `agensi-v1.0`); Agensi version numbers cannot be changed after upload. The next release is 1.1.0, so that the source and the listing carry the same number from then on.
+
 ### Changed
 
 - The marketplace ZIP no longer includes `examples/` and `evals/`, like a local installation: they hold the reference case's expected baseline and the evaluation criteria, which an agent under evaluation must not receive, and the sample app cannot be used through Agensi without persisting it. `SKILL.md` no longer points to the example, and the skill README describes what a good first run looks like instead.
