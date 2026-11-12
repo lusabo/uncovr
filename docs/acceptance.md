@@ -80,6 +80,35 @@ Observed friction: long runs, repeated reads, invalid line references corrected 
 
 Remaining validation: the updated MCP contract, live Agensi delivery, Claude Code, independent repeated runs, source-change refresh, real runtime behavior and review by a Product Owner/domain specialist. The pilot is positive evidence for local discovery and incremental preservation, not marketplace approval or cross-agent certification.
 
+## Local pilot record: Claude Code, 2026-11-11
+
+Evidence: the target's outputs (`product-context/`, `.uncovr/state.json`), the skill files the run used, and the metadata of the Claude Code session log (version, model, timestamps and tool-call counts; no conversation content copied), inspected on 2026-11-12. The baseline contents and target code are not stored here or included in the marketplace package. This is a retrospective record of one run, not a reproducible benchmark or an independent domain acceptance review.
+
+- Target: [legacy OrangeHRM](https://github.com/orangehrm/legacy.orangehrm), revision `5d1661256a09ec3226bda48530f98175ac6cc006`, in a separate clone from the Copilot pilot.
+- Skill: the skill folder copied into the target's `.claude/skills/uncovr/`, without `uncovr.py install`, manifest, named agents, `examples/` or `evals/`. Its `SKILL.md` declares 0.5.0, but the copy matches no commit and not the 0.5.0 ZIP: 13 of its 17 files equal the ZIP, while `SKILL.md`, `references/analyst.md`, `references/validator.md` and `references/evidence-contract.md` differ. It is a pre-release working copy of 0.5.0.
+- Runtime: Claude Code 2.1.317. Model ID recorded by the log: `claude-opus-5-5`.
+- Delivery: local skill, loaded through Claude Code's skill mechanism (two `Skill` calls). No Agensi execution was observed.
+- Scope: absence request and approval workflow of the leave plugin, with targeted reads of the core plugin's workflow and roles and of the workflow seed; confirmed explicitly by the owner acting as Product Owner. No wiki. Application, database and target-system tests were not executed.
+
+| Observation | Value |
+| --- | --- |
+| Claims | 42: 19 business rules, 7 features, 6 architecture, 5 constraints, 5 assumptions |
+| Confidence | 36 confirmed, 5 inferred, 1 gap, 0 contradicted |
+| Business validation | 25 pending, 11 not_applicable, 6 rejected, 0 approved |
+| Human decisions | 6 rejections, each with `validated_by` and `validated_on`, listed under *Decisions* in `validation.md`; two questions left open |
+| Final phase | awaiting_human_review |
+| Session span | About 106 minutes from first to last event (21:53–23:39 UTC), including the time the person took to answer |
+| Main-session tool calls | 84 Bash, 16 Read, 8 Write, 4 Edit, 8 AskUserQuestion, 2 Agent, 2 Skill |
+| Validation | One subagent in a separate context, about 7 minutes (53 Bash, 1 Read, 1 Write); `validation.md` records the review as independent |
+
+Tool counts are calls serialized in the log, not token counts, billing measurements or proof of useful work.
+
+Verified on 2026-11-12: Git reported no tracked change; only `.claude/`, `.uncovr/`, `product-context/` and an operating-system `.DS_Store` were untracked. The structural check of the copy that ran reports the structure valid without warnings. The current check reports it valid with two warnings: a `traceability.md` row for BR-020 names two files its evidence does not cite, a rule added after the run.
+
+The rejections kept technical confidence apart from the business decision: rejected claims stayed `confirmed` or `inferred` ("inferred until reproduced in a test environment"), and no rejection was presented as proof of a defect. They were recorded on the claims themselves. The current evidence contract, added after this run, records each decision as a separate `decision` claim. This baseline predates that protocol and is not converted.
+
+Remaining validation: live Agensi delivery, trigger reliability without naming the skill, repeated runs, version 0.6.0 itself, source-change refresh, real runtime behavior and review by a domain specialist. The run is positive evidence that the workflow, checkpoints, separate-context review and write boundary hold in Claude Code with a local skill, not marketplace approval or cross-agent certification.
+
 ## Pilot acceptance (requires a real target repository and humans)
 
 Select a known system and one realistic proposed change. Ask an unfamiliar PO to identify:

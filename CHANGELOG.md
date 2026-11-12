@@ -4,8 +4,13 @@ All notable changes to Uncovr are recorded here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-12
+
 ### Changed
 
+- The marketplace ZIP no longer includes `examples/` and `evals/`, like a local installation: they hold the reference case's expected baseline and the evaluation criteria, which an agent under evaluation must not receive, and the sample app cannot be used through Agensi without persisting it. `SKILL.md` no longer points to the example, and the skill README describes what a good first run looks like instead.
+- Version 0.6.0 in `uncovr.py`, `SKILL.md` and the wiki exporter.
+- The development acceptance record adds a local Claude Code run on a pre-release copy of 0.5.0; the READMEs list Claude Code and GitHub Copilot in VS Code as observed local environments. Agensi delivery remains unverified.
 - Analyst and Validator require UI evidence for user-visible claims, scope-aware exceptions to universal assertions, atomic claims with scoped human decisions, and consistent source-conflict reporting.
 - The evidence contract defines claim splitting with stable IDs, decision provenance and preserved history; a human choice of desired behavior does not erase an implementation mismatch.
 - The architecture template adds an inspection boundary (inspected, unknown, external) and a compact technology stack, and gives components their responsibility, boundary, data flows and external dependencies. Deployment separates configuration found, execution observed and production not confirmed; release, storage and compatibility limits need a source. Explorer, Analyst, Validator, the evidence contract and the repository-signals checklist follow, and the example records its stack and its unconfirmed deployment as claims. Existing baselines remain valid.

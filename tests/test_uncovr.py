@@ -59,7 +59,7 @@ class UncovrTests(unittest.TestCase):
         self.assertTrue((installed / "scripts" / "check.py").is_file())
         for stage in ("explorer", "analyst", "validator", "evidence-contract"):
             self.assertTrue((installed / "references" / f"{stage}.md").is_file())
-        for skipped in uncovr.INSTALL_SKIP:
+        for skipped in uncovr.NOT_SHIPPED:
             self.assertFalse((installed / skipped).exists())
         self.assertTrue((self.root / ".github/agents/uncovr.agent.md").is_file())
         self.assertTrue((self.root / ".github/agents/uncovr-validator.agent.md").is_file())
@@ -1057,9 +1057,11 @@ class MarketplacePackageTests(unittest.TestCase):
                 names = archive.namelist()
                 self.assertEqual(archive.read("uncovr/LICENSE"), (SKILL.parents[2] / "LICENSE").read_bytes())
                 expected = {f"uncovr/{path.relative_to(SKILL).as_posix()}"
-                            for path in uncovr._package_files(SKILL)} | {"uncovr/LICENSE"}
+                            for path in uncovr._shipped_files(SKILL)} | {"uncovr/LICENSE"}
                 self.assertEqual(set(names), expected)
                 self.assertEqual(len(names), len(set(names)))
+                # Expected answers must not reach an agent under evaluation.
+                self.assertFalse([n for n in names if n.startswith(("uncovr/examples/", "uncovr/evals/"))])
             self.assertIn("uncovr/SKILL.md", names)
             self.assertEqual({name.split("/")[0] for name in names}, {"uncovr"})
             self.assertFalse([n for n in names if "/." in n or "__pycache__" in n])

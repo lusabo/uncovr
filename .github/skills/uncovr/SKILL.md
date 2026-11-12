@@ -2,7 +2,7 @@
 name: uncovr
 description: Reconstructs an evidence-backed product baseline — features, business rules, architecture, regression hotspots and open questions — from an existing codebase, for developers and product owners about to change a legacy system. Use when the user asks to understand a legacy or undocumented codebase, recover business rules from code, map what a system does before changing it, prepare for a planned change, or rebuild product context for a new version. Do not use to write or fix code, specify new features, or review a pull request.
 summary: Reconstruct features, business rules and change risks from a legacy repository, with source evidence and human review checkpoints.
-version: "0.5.0"
+version: "0.6.0"
 tags: [legacy, documentation, business-rules, traceability]
 keywords: [product-context, reverse-engineering, evidence]
 use_cases:
@@ -30,7 +30,6 @@ Files of this skill, all relative to this file:
 | `scripts/check.py` | After each stage, to check the structure of the baseline |
 | `scripts/history.py` | Stage 1, to measure where change and fixes concentrate in the Git history |
 | `scripts/okf.py` | At the end, to publish the baseline as an LLM wiki in the Open Knowledge Format, for the target the user chose |
-| `examples/order-approval/` | To see a complete baseline for a small app; it is an example, not part of any project |
 
 ## Execution modes
 

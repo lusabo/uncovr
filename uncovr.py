@@ -11,11 +11,12 @@ import shutil
 import sys
 import zipfile
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 MANIFEST = ".uncovr/manifest.json"
 SKILL_NAME = "uncovr"
 SKILL_DIR = ".github/skills/uncovr"
-INSTALL_SKIP = ("examples", "evals")
+# The reference case and evals hold expected answers; an agent under evaluation must not receive them.
+NOT_SHIPPED = ("examples", "evals")
 SKILL_MD_MAX_LINES = 500
 SCRIPT_MAX_BYTES = 20_000
 
@@ -63,13 +64,17 @@ def _package_files(skill: Path) -> list[Path]:
     ]
 
 
+def _shipped_files(skill: Path) -> list[Path]:
+    """Skill files that reach a user, by local installation or through the marketplace."""
+    return [path for path in _package_files(skill) if path.relative_to(skill).parts[0] not in NOT_SHIPPED]
+
+
 def _managed_files(source_root: Path) -> list[tuple[Path, str]]:
     """Package files that Uncovr installs and owns, paired with their path in a target."""
     skill = source_root / SKILL_DIR
     pairs = [
         (path, f"{SKILL_DIR}/{path.relative_to(skill).as_posix()}")
-        for path in _package_files(skill)
-        if path.relative_to(skill).parts[0] not in INSTALL_SKIP
+        for path in _shipped_files(skill)
     ]
     pairs += [
         (path, path.relative_to(source_root).as_posix())
@@ -139,7 +144,7 @@ def pack_problems(skill: Path) -> list[str]:
 
 
 def pack(out: Path) -> int:
-    """Write <out>/uncovr.zip: one top folder with SKILL.md at its root, text files only."""
+    """Write <out>/uncovr.zip: one top folder with SKILL.md at its root, text files only, no examples or evals."""
     source_root = _source_root()
     if source_root is None:
         print("Pack must be run from the Uncovr source checkout.", file=sys.stderr)
@@ -166,7 +171,7 @@ def pack(out: Path) -> int:
     archive = out / f"{SKILL_NAME}.zip"
     files = {
         f"{SKILL_NAME}/{path.relative_to(skill).as_posix()}": path.read_bytes()
-        for path in _package_files(skill)
+        for path in _shipped_files(skill)
     }
     files[f"{SKILL_NAME}/LICENSE"] = license_bytes
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:

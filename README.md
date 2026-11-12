@@ -4,9 +4,9 @@
 
 Uncovr focuses on **what exists, how it behaves, which rules and dependencies matter, what is uncertain, and what needs human validation**. It does not generate new production code or pretend that source code explains the business intent behind every decision.
 
-## What v0.5 contains
+## What v0.6 contains
 
-- **One Agent Skill, `uncovr`,** in `.github/skills/uncovr/`: the workflow in `SKILL.md`, the Explorer, Analyst and Validator stages in `references/`, artifact templates in `assets/`, a self-contained structural check in `scripts/`, a worked example in `examples/` and evals in `evals/`. The same folder is installed into VS Code and packaged for the Agensi marketplace.
+- **One Agent Skill, `uncovr`,** in `.github/skills/uncovr/`: the workflow in `SKILL.md`, the Explorer, Analyst and Validator stages in `references/`, artifact templates in `assets/`, a self-contained structural check in `scripts/`, a worked example in `examples/` and evals in `evals/`. The same folder is installed into VS Code and packaged for the Agensi marketplace, both without `examples/` and `evals/`.
 - **Two optional VS Code agents:** **Uncovr** as entry point and **Uncovr Validator**, run as a subagent so the review happens in a separate context.
 - **Six primary Markdown artifacts:** overview, feature catalog, domain, architecture, traceability, validation.
 - **One evidence index:** JSONL claims with stable IDs, source provenance, confidence and separately recorded business validation.
@@ -14,7 +14,7 @@ Uncovr focuses on **what exists, how it behaves, which rules and dependencies ma
 - **One standard-library Python CLI:** non-destructive installation with a manifest, structural checks, status and marketplace packaging.
 - **Unit tests, isolated execution tests of scripts from the ZIP, manual agent evals and a CI workflow.**
 
-> Actual functional reconstruction requires an AI agent with access to the target repository and human review. Two local Copilot pilot rounds on version 0.4.0 covered absence management and an incremental attendance baseline in legacy OrangeHRM. Claude Code and the updated Agensi MCP delivery contract have not yet been evaluated end to end.
+> Actual functional reconstruction requires an AI agent with access to the target repository and human review. Two local Copilot pilot rounds on version 0.4.0 covered absence management and an incremental attendance baseline in legacy OrangeHRM, and one local Claude Code run on a pre-release copy of 0.5.0 covered absence management. The Agensi MCP delivery contract has not yet been evaluated end to end.
 
 The [acceptance and evaluation record](docs/acceptance.md) separates automated checks, manual evaluations and the anonymized pilot observations. Private exports and target repositories are not included in the package.
 
@@ -22,7 +22,7 @@ The [acceptance and evaluation record](docs/acceptance.md) separates automated c
 
 Requirements: Python 3.10+; an existing repository; an agent runtime supporting project skills, such as GitHub Copilot in VS Code.
 
-Observed pilot environment: GitHub Copilot Chat in VS Code (the optional agents declare `target: vscode`). Claude Code is a target for the standalone skill, not yet a verified environment.
+Observed pilot environments, both with local skill files: GitHub Copilot Chat in VS Code and Claude Code. The optional agents declare `target: vscode` and are for VS Code only; Claude Code runs the standalone skill.
 
 1. Clone/download this Uncovr repository.
 2. Install Uncovr into a different local repository:
@@ -57,7 +57,7 @@ The buyer connects their repository-capable agent to Agensi, obtains access to t
 python3 uncovr.py pack            # writes dist/uncovr.zip
 ```
 
-The ZIP holds one top folder, `uncovr/`, with `SKILL.md` at its root, the project's original `LICENSE` and text files only; `pack` refuses symlinks, binary files, a `SKILL.md` of 500 lines or more and scripts over 20 KB. The VS Code agents are not included: Agensi delivers skills through MCP and does not sell agents. Upload it in the Creator Dashboard, set the price, and use the skill's `README.md` and frontmatter description, summary, version, tags and use cases for the listing. These do not choose a price, create a listing or certify compatibility. Before submitting, run the [evals](.github/skills/uncovr/evals/evals.json) in every environment you intend to advertise. The local pilots do not prove the MCP delivery path; after approval, verify the live skill through Agensi without installing it locally.
+The ZIP holds one top folder, `uncovr/`, with `SKILL.md` at its root, the project's original `LICENSE` and text files only; `pack` refuses symlinks, binary files, a `SKILL.md` of 500 lines or more and scripts over 20 KB. The VS Code agents are not included: Agensi delivers skills through MCP and does not sell agents. Neither are `examples/` and `evals/`: they hold the expected answers, and a buyer's agent — or your own, when you verify the live skill — must not receive them. Upload it in the Creator Dashboard, set the price, and use the skill's `README.md` and frontmatter description, summary, version, tags and use cases for the listing. These do not choose a price, create a listing or certify compatibility. Before submitting, run the [evals](.github/skills/uncovr/evals/evals.json) in every environment you intend to advertise. The local pilots do not prove the MCP delivery path; after approval, verify the live skill through Agensi without installing it locally.
 
 ## Uninstall
 
@@ -82,8 +82,8 @@ Run `status` first and keep any file it reports as modified locally if you want 
     references/               explorer.md, analyst.md, validator.md, evidence-contract.md
     assets/product-context/   six templates + evidence.jsonl
     scripts/check.py          structural check, standard library only
-    examples/order-approval/  reference case: app/, expected/ baseline, cases.json
-    evals/evals.json          trigger prompts and quality criteria
+    examples/order-approval/  reference case: app/, expected/ baseline, cases.json (not shipped)
+    evals/evals.json          trigger prompts and quality criteria (not shipped)
 uncovr.py                     install, check, status, pack
 tests/test_uncovr.py
 docs/

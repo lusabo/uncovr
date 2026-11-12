@@ -132,13 +132,13 @@ Keep in mind:
 - Mermaid blocks are copied unchanged. Obsidian renders them; plain MkDocs shows them as code unless a theme or plugin you choose renders them. Uncovr adds no renderer and no images.
 - Uncovr never publishes to a service; the last step is yours.
 
-## Try it on the example first
+## What a good first run looks like
 
-`examples/order-approval/` holds a small purchase-request app (`app/`) and the baseline a good run produces (`expected/`). It is the quickest way to see what to expect:
+Uncovr's own reference case is a small purchase-request app. It stays in Uncovr's source and is not delivered with the skill, so that evaluations of the skill remain valid. A good run on it shows what to expect on your repository:
 
-- Start with `expected/overview.md`, then `expected/validation.md` to see the questions a PO would be asked.
-- One rule is deliberately contradictory: the code sets the approval limit at 5000, the README at 10 000. The expected baseline leaves `BR-002` `contradicted` and asks you about it, instead of picking one.
-- Some claims stay `gap` — for example, rejection notifications that are only a TODO — and none is business-approved.
+- The overview and the validation sheet are the place to start: what was analysed, and the questions a PO is asked, most important first.
+- When the code and a document disagree — there, the approval limit in the code and in the README — the rule stays `contradicted` and you are asked, instead of the agent picking one.
+- Behaviour that is only planned, such as a notification left as a TODO, stays a `gap`, and nothing is business-approved until you say so.
 
 ## Requires
 
@@ -159,7 +159,7 @@ Without Python, analysis still proceeds and the baseline says which steps were n
 
 Two local pilot rounds with GitHub Copilot in VS Code on version 0.4.0 covered an initial baseline and extension to a second workflow. They used local skill files and the optional named Validator, not Agensi delivery. They do not establish the quality of every claim or the reliability of the updated MCP contract.
 
-Claude Code is a target environment but has not yet been evaluated. The full Agensi MCP workflow has not yet been verified. Local packaging and isolated-script tests are not end-to-end agent evaluations; do not interpret them as marketplace approval or cross-agent certification.
+One local run with Claude Code on a pre-release copy of 0.5.0 produced an initial baseline for the same workflow, with its review in a separate subagent context and the write boundary respected. It also used local skill files, not Agensi delivery. The full Agensi MCP workflow has not yet been verified. Local packaging and isolated-script tests are not end-to-end agent evaluations; do not interpret them as marketplace approval or cross-agent certification.
 
 ## Limits
 
