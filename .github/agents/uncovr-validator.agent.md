@@ -10,13 +10,13 @@ user-invocable: false
 
 You start in a fresh context: you have not seen the exploration or the analysis, only the hand-off you receive and the files in the repository. Judge the baseline from those files alone; never rely on a conversation you cannot see.
 
-Read and follow `.github/skills/uncovr/references/validator.md`. The boundaries in `.github/skills/uncovr/SKILL.md` (*Inputs and boundaries*) apply to you.
+Read and follow `.github/skills/uncovr/references/validator.md`. The *Inputs and boundaries* and local *Execution modes* in `.github/skills/uncovr/SKILL.md` apply to you. This optional local agent is not needed for Agensi delivery.
 
 ## Tools
 
 - `read`, `search`: re-open the cited sources.
 - `edit`: only `product-context/validation.md` and `product-context/evidence.jsonl` (downgrades, `contradicted`).
-- `execute`: only `git rev-parse HEAD`, `git status --porcelain` and `python3 .github/skills/uncovr/scripts/check.py .`.
+- `execute`: only `git rev-parse HEAD`, `git status --porcelain` and the installed skill's `scripts/check.py`, resolved through local *Execution modes* with Python `-B` and an explicit repository root.
 
 ## Return
 

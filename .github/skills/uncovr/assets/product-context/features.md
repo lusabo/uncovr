@@ -7,7 +7,7 @@
 | Pending | To investigate | Unknown | Unknown | Unknown | Unknown | Pending |
 
 ## Critical journeys
-Document a few important end-to-end journeys, including alternative and error flows, only when supported.
+Document a few important end-to-end journeys, including alternative and error flows, only when supported. A Mermaid `flowchart`, or a `sequenceDiagram` when the order of interactions matters, may help when the text is hard to follow; follow *Diagrams* in the evidence contract.
 
 ## Observed acceptance criteria
 Per feature, the behavior its tests assert (Given / When / Then, boundary values, decision tables). Tests show behavior, not intent.

@@ -4,7 +4,7 @@
 
 Uncovr focuses on **what exists, how it behaves, which rules and dependencies matter, what is uncertain, and what needs human validation**. It does not generate new production code or pretend that source code explains the business intent behind every decision.
 
-## What v0.4 contains
+## What v0.5 contains
 
 - **One Agent Skill, `uncovr`,** in `.github/skills/uncovr/`: the workflow in `SKILL.md`, the Explorer, Analyst and Validator stages in `references/`, artifact templates in `assets/`, a self-contained structural check in `scripts/`, a worked example in `examples/` and evals in `evals/`. The same folder is installed into VS Code and packaged for the Agensi marketplace.
 - **Two optional VS Code agents:** **Uncovr** as entry point and **Uncovr Validator**, run as a subagent so the review happens in a separate context.
@@ -12,15 +12,17 @@ Uncovr focuses on **what exists, how it behaves, which rules and dependencies ma
 - **One evidence index:** JSONL claims with stable IDs, source provenance, confidence and separately recorded business validation.
 - **Optional LLM wiki:** the baseline published as an Open Knowledge Format v0.2 bundle for Obsidian, MkDocs or Google Knowledge Catalog, chosen at the scope checkpoint.
 - **One standard-library Python CLI:** non-destructive installation with a manifest, structural checks, status and marketplace packaging.
-- **Unit tests, a reference case per AI stage and a CI workflow.**
+- **Unit tests, isolated execution tests of scripts from the ZIP, manual agent evals and a CI workflow.**
 
-> v0.4 is a working scaffold and validation toolkit. Actual functional reconstruction requires an AI agent or human reviewer with access to the target repository. No real target system has yet been analysed with this package.
+> Actual functional reconstruction requires an AI agent with access to the target repository and human review. Two local Copilot pilot rounds on version 0.4.0 covered absence management and an incremental attendance baseline in legacy OrangeHRM. Claude Code and the updated Agensi MCP delivery contract have not yet been evaluated end to end.
 
-## Quick start
+The [acceptance and evaluation record](docs/acceptance.md) separates automated checks, manual evaluations and the anonymized pilot observations. Private exports and target repositories are not included in the package.
+
+## Quick start (local installation)
 
 Requirements: Python 3.10+; an existing repository; an agent runtime supporting project skills, such as GitHub Copilot in VS Code.
 
-Supported environments: GitHub Copilot Chat in VS Code (the agents declare `target: vscode`) and Claude Code (the skill alone).
+Observed pilot environment: GitHub Copilot Chat in VS Code (the optional agents declare `target: vscode`). Claude Code is a target for the standalone skill, not yet a verified environment.
 
 1. Clone/download this Uncovr repository.
 2. Install Uncovr into a different local repository:
@@ -38,12 +40,16 @@ Supported environments: GitHub Copilot Chat in VS Code (the agents declare `targ
 4. After analysis, inspect `product-context/` and run, in the project:
 
    ```bash
-   python3 .github/skills/uncovr/scripts/check.py .
+  python3 -B .github/skills/uncovr/scripts/check.py .
    ```
 
    and, from the Uncovr checkout, `python3 /path/to/uncovr/uncovr.py status /path/to/existing-project`.
 
 The install command **never overwrites** an existing path. It copies the skill without `examples/` and `evals/`, and records the installed version and a hash of each Uncovr file in `.uncovr/manifest.json`; `status` reports files that were modified locally and files whose version in this checkout differs. Updating is still manual: replace the reported files, then delete the manifest and re-run install to record the new version. Do not use this framework on repositories whose code you are not authorized to inspect. Review repository security policy and avoid sharing confidential sources with unauthorized model providers.
+
+## Use through Agensi
+
+The buyer connects their repository-capable agent to Agensi, obtains access to the listing and asks it to use Uncovr. No Uncovr installer runs in the buyer's project: the agent loads the skill and its supporting text through MCP. Scripts execute unchanged in private temporary files, then are removed. Only the baseline and its progress state persist. See the [skill README](.github/skills/uncovr/README.md) for requirements and current validation limits.
 
 ## Publish on Agensi
 
@@ -51,7 +57,7 @@ The install command **never overwrites** an existing path. It copies the skill w
 python3 uncovr.py pack            # writes dist/uncovr.zip
 ```
 
-The ZIP holds one top folder, `uncovr/`, with `SKILL.md` at its root and text files only; `pack` refuses symlinks, binary files, a `SKILL.md` of 500 lines or more and scripts over 20 KB. The VS Code agents are not included: Agensi delivers skills through MCP and does not sell agents. Upload it in the Creator Dashboard, set the price, and use the skill's `README.md` and the `description` in `SKILL.md` for the listing. Before submitting, run `evals/evals.json` in Copilot and Claude Code and analyse at least one real repository.
+The ZIP holds one top folder, `uncovr/`, with `SKILL.md` at its root, the project's original `LICENSE` and text files only; `pack` refuses symlinks, binary files, a `SKILL.md` of 500 lines or more and scripts over 20 KB. The VS Code agents are not included: Agensi delivers skills through MCP and does not sell agents. Upload it in the Creator Dashboard, set the price, and use the skill's `README.md` and frontmatter description, summary, version, tags and use cases for the listing. These do not choose a price, create a listing or certify compatibility. Before submitting, run the [evals](.github/skills/uncovr/evals/evals.json) in every environment you intend to advertise. The local pilots do not prove the MCP delivery path; after approval, verify the live skill through Agensi without installing it locally.
 
 ## Uninstall
 

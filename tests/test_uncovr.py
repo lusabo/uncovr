@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -169,9 +170,205 @@ class UncovrTests(unittest.TestCase):
         self.assertTrue(warnings)
         self.assertEqual(sum(counts.values()), 0)
 
+    def test_markdown_citing_a_missing_claim_is_warning(self):
+        source = self.root / "src/orders.py"
+        source.parent.mkdir()
+        source.write_text("line 1\nline 2\n", encoding="utf-8")
+        self.write_claim(self.sample())
+        (self.root / "product-context/domain.md").write_text(
+            "BR-001 and BR-009 apply; see ISO-8601.\n", encoding="utf-8")
+        errors, warnings, _ = uncovr.validate(self.root)
+        self.assertFalse(errors)
+        self.assertIn("domain.md cites BR-009, which is not in evidence.jsonl", warnings)
+        self.assertFalse([w for w in warnings if "ISO-8601" in w or "cites BR-001" in w])
+
+    def test_architecture_rows_must_cite_a_claim(self):
+        architecture = self.root / "product-context/architecture.md"
+        scaffold = architecture.read_text(encoding="utf-8")
+        _, warnings, _ = uncovr.validate(self.root)
+        self.assertFalse([w for w in warnings if "cites no claim ID" in w])
+        architecture.write_text(
+            scaffold.split("<!--")[0]
+            + "## Technology stack\n| Technology | Role | Constraint | Claim ID |\n| --- | --- | --- | --- |\n"
+              "| PostgreSQL | Orders store | Version not declared | ARCH-001 |\n| Redis | Cache | None | |\n"
+              "## Context and major components\n| Component | Responsibility | Boundary | External | Claim ID |\n"
+              "| --- | --- | --- | --- | --- |\n| Billing | Invoices | API | Stripe | |\n"
+              "## Deployment and environments\n| Unit | Where |\n| --- | --- |\n| web | unknown |\n",
+            encoding="utf-8")
+        _, warnings, _ = uncovr.validate(self.root)
+        rows = sorted(w for w in warnings if "cites no claim ID" in w)
+        self.assertEqual(rows, [
+            "architecture.md: row 'Billing' in Context and major components cites no claim ID",
+            "architecture.md: row 'Redis' in Technology stack cites no claim ID",
+        ])
+
+
+    def test_not_applicable_is_warning_for_business_claims_and_gaps(self):
+        source = self.root / "src/orders.py"
+        source.parent.mkdir()
+        source.write_text("line 1\nline 2\n", encoding="utf-8")
+        rule = dict(self.sample(), business_validation="not_applicable")
+        gap = {"id": "ARCH-002", "kind": "architecture", "summary": "Runtime unknown.",
+               "confidence": "gap", "business_validation": "not_applicable", "evidence": []}
+        layout = dict(self.sample(), id="ARCH-001", kind="architecture",
+                      business_validation="not_applicable")
+        (self.root / "product-context/evidence.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in (rule, gap, layout)), encoding="utf-8")
+        errors, warnings, _ = uncovr.validate(self.root)
+        self.assertFalse(errors)
+        flagged = sorted(w.split(": ")[1].split(" ")[0] for w in warnings if "is not_applicable" in w)
+        self.assertEqual(flagged, ["ARCH-002", "BR-001"])
+
+    def test_declared_intent_keeps_confidence_and_approval_independent(self):
+        record = {
+            "id": "CTX-001", "kind": "assumption",
+            "summary": "Synthetic case: the product is declared to serve internal buyers.",
+            "confidence": "inferred", "business_validation": "approved",
+            "validated_by": "Synthetic PO (test fixture)", "validated_on": "2026-01-01",
+            "evidence": [{"type": "interview", "ref": "Synthetic interview (test fixture)"}],
+        }
+        self.write_claim(record)
+        errors, warnings, _ = uncovr.validate(self.root)
+        self.assertEqual(errors, [])
+        self.assertFalse([w for w in warnings if "is not_applicable" in w])
+        record["confidence"] = "confirmed"
+        self.write_claim(record)
+        errors, _, _ = uncovr.validate(self.root)
+        self.assertTrue(any("lacks technical evidence" in e for e in errors))
+
+    # Traceability and validation views. Identities are synthetic test fixtures.
+    DECISION = {"id": "DEC-001", "kind": "decision", "summary": "Synthetic case: the limit is 5000.",
+                "confidence": "inferred", "business_validation": "approved",
+                "validated_by": "Synthetic PO (test fixture)", "validated_on": "2026-01-01",
+                "evidence": [{"type": "interview", "ref": "Synthetic interview (test fixture), 2026-01-01"}]}
+
+    def views(self, records, trace="", sources="", questions="", decisions="None recorded.",
+              contradictions=""):
+        source = self.root / "src/orders.py"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text("line 1\nline 2\n", encoding="utf-8")
+        context = self.root / "product-context"
+        (context / "evidence.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+        header = "| Claim ID | Feature or rule | Source files | Tests | Related claims | Impact note |\n| --- | --- | --- | --- | --- | --- |\n"
+        source_header = "| Source | Purpose | Scope consulted | Version or date | Status | Claim IDs |\n| --- | --- | --- | --- | --- | --- |\n"
+        (context / "traceability.md").write_text(
+            f"# Traceability\n\n{header}{trace}\n## Sources\n{source_header if sources else ''}{sources}\n",
+            encoding="utf-8")
+        decision_header = "| Decision claim | Covers | Outcome | Status | Reopening reason |\n| --- | --- | --- | --- | --- |\n"
+        (context / "validation.md").write_text(
+            f"# Validation\n\n## Outstanding questions\n{questions}\n"
+            f"## Decisions\n{decision_header if '|' in decisions else ''}{decisions}\n"
+            f"## Contradictions and review outcomes\n{contradictions}\n", encoding="utf-8")
+        errors, warnings, _ = uncovr.validate(self.root)
+        return errors, [w for w in warnings if w.startswith(("traceability.md", "validation.md"))]
+
+    def test_sources_view_without_external_sources_or_with_an_inaccessible_one(self):
+        rule = self.sample()
+        self.assertEqual(self.views([rule], trace="| BR-001 | Approve | `src/orders.py` | none | — | — |\n"),
+                         ([], []))
+        gap = {"id": "CTX-001", "kind": "assumption", "confidence": "gap", "business_validation": "pending",
+               "summary": "Synthetic case: the linked policy could not be opened.",
+               "evidence": [{"type": "document", "ref": "README.md (Policy link)"}]}
+        row = "| Policy wiki | Declared limit | Not opened | Unknown | inaccessible | CTX-001 |\n"
+        self.assertEqual(self.views([rule, gap], sources=row), ([], []))
+        cited = dict(gap, evidence=[{"type": "document", "ref": "Policy wiki (section 2)"}])
+        bad = row + "| Ticket 12 | Request | Unknown | Unknown | maybe | none |\n"
+        _, warnings = self.views([rule, cited], sources=bad)
+        self.assertEqual(warnings, [
+            "traceability.md: source 'Policy wiki' is inaccessible but cited as evidence in evidence.jsonl",
+            "traceability.md: source 'Ticket 12' needs status consulted, indicated or inaccessible",
+            "traceability.md: source 'Ticket 12' cites no claim ID",
+        ])
+
+    def test_traceability_names_only_files_the_evidence_cites(self):
+        _, warnings = self.views([self.sample()],
+                                 trace="| BR-001 | Approve | `src/billing.py` | `tests/` | — | — |\n")
+        self.assertEqual(warnings, [
+            "traceability.md: BR-001 names src/billing.py, which its evidence in evidence.jsonl does not cite",
+            "traceability.md: BR-001 names tests/, which its evidence in evidence.jsonl does not cite",
+        ])
+
+    def test_unresolved_contradiction_must_be_listed(self):
+        conflict = dict(self.sample(), confidence="contradicted")
+        _, warnings = self.views([conflict])
+        self.assertEqual(warnings, ["validation.md: contradicted BR-001 is not listed "
+                                    "under Contradictions and review outcomes"])
+        row = ("| Divergence | Claims involved | Source positions | Impact | Decision or status |\n"
+               "| --- | --- | --- | --- | --- |\n| Limit | BR-001 | Code: 5000. README: 10 000. | High | pending |\n")
+        self.assertEqual(self.views([conflict], contradictions=row), ([], []))
+
+    def test_decision_row_needs_a_recorded_human_decision(self):
+        row = "| DEC-001 | BR-001 | Limit is 5000 | in force | — |\n"
+        self.assertEqual(self.views([self.sample(), self.DECISION], decisions=row), ([], []))
+        pending = dict(self.DECISION, business_validation="pending")
+        del pending["validated_by"], pending["validated_on"]
+        _, warnings = self.views([self.sample(), pending], decisions=row)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("DEC-001 is listed as a decision but evidence.jsonl records no human decision", warnings[0])
+
+    def test_reopening_requires_new_evidence_and_a_new_question(self):
+        newer = dict(self.sample(), id="BR-002", summary="Synthetic case: the limit changed at a newer revision.",
+                     evidence=[dict(self.sample()["evidence"][0], revision="89abcdef0")])
+        claims = [self.sample(), self.DECISION, newer]
+        reopened = "| DEC-001 | BR-001 | Limit is 5000 | reopened | BR-002: limit changed in code |\n"
+        question = "| DEC-001, BR-002 | Does the decision still hold? | High | PO/SME | Open |\n"
+        self.assertEqual(self.views(claims, decisions=reopened, questions=question), ([], []))
+        _, warnings = self.views(claims, decisions="| DEC-001 | BR-001 | Limit is 5000 | reopened | changed mind |\n")
+        self.assertEqual(warnings, [
+            "validation.md: reopened DEC-001 needs the claim ID of the new evidence as its reason",
+            "validation.md: reopened DEC-001 is not asked again under Outstanding questions",
+        ])
+
+    def test_supersedes_must_name_other_existing_claims(self):
+        newer = dict(self.DECISION, id="DEC-002", supersedes=["DEC-001"])
+        rows = "| DEC-001 | BR-001 | Limit is 5000 | superseded by DEC-002 | — |\n"
+        self.assertEqual(self.views([self.sample(), self.DECISION, newer], decisions=rows), ([], []))
+        for value, message in ((["DEC-009"], "supersedes unknown DEC-009"),
+                               (["DEC-002"], "must be an array of other claim IDs"),
+                               ("DEC-001", "must be an array of other claim IDs")):
+            with self.subTest(supersedes=value):
+                errors, _ = self.views([self.sample(), self.DECISION, dict(newer, supersedes=value)])
+                self.assertTrue(any(message in e for e in errors), errors)
+        _, warnings = self.views([self.sample(), self.DECISION, dict(newer, supersedes=[])], decisions=rows)
+        self.assertEqual(warnings, ["validation.md: DEC-002 does not list DEC-001 in supersedes"])
+
+    def diagram_warnings(self, features):
+        source = self.root / "src/orders.py"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text("line 1\nline 2\n", encoding="utf-8")
+        inferred = dict(self.sample(), id="BR-002", confidence="inferred",
+                        summary="Synthetic case: approval probably notifies billing.")
+        (self.root / "product-context/evidence.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in (self.sample(), inferred)), encoding="utf-8")
+        (self.root / "product-context/features.md").write_text(features, encoding="utf-8")
+        errors, warnings, _ = uncovr.validate(self.root)
+        self.assertEqual(errors, [])
+        return [w for w in warnings if "Mermaid block" in w]
+
+    def test_baseline_without_diagrams_has_no_diagram_warnings(self):
+        self.assertEqual(self.diagram_warnings("# Features\n\nApproval is one step (BR-001); no diagram.\n"), [])
+
+    def test_mermaid_blocks_cite_claims_and_name_their_confidence(self):
+        good = ("# Features\n\nApproval, confirmed (BR-001); billing is inferred (BR-002).\n\n"
+                "```mermaid\nflowchart LR\n  A[Approve] --> B[Approved]\n  B -.->|inferred| C[Billing]\n```\n")
+        self.assertEqual(self.diagram_warnings(good), [])
+        bad = ("# Features\n\nApproval and billing (BR-001, BR-002).\n\n"
+               "```mermaid\nflowchart LR\n  A --> C\n  style A fill:#f00\n```\n\n"
+               "No claim here.\n\n```mermaid\npie title Approvals\n  \"yes\" : 3\n```\n\n"
+               "```mermaid\nflowchart LR\n  A --> B\n")
+        self.assertEqual(self.diagram_warnings(bad), [
+            "features.md: Mermaid block at line 5 uses themes, styles or click handlers",
+            "features.md: Mermaid block at line 5 draws BR-002 without saying it is inferred",
+            "features.md: Mermaid block at line 13 is a 'pie' diagram; use flowchart, sequenceDiagram, "
+            "stateDiagram-v2 or erDiagram, and no charts of quantities",
+            "features.md: Mermaid block at line 13 cites no claim ID in it or in the sentence before it",
+            "features.md: Mermaid block at line 18 is not closed",
+        ])
+
 
 class StageCaseTests(unittest.TestCase):
-    """The reference case of each AI stage: its expected baseline must hold structurally."""
+    """Reference baselines and stage instruction contracts, not live agent behavior."""
 
     def test_expected_baseline_meets_stage_cases(self):
         cases = json.loads((FIXTURE / "cases.json").read_text(encoding="utf-8"))
@@ -179,8 +376,9 @@ class StageCaseTests(unittest.TestCase):
             root = Path(tmp)
             shutil.copytree(FIXTURE / cases["fixture"], root, dirs_exist_ok=True)
             shutil.copytree(FIXTURE / cases["expected"], root / "product-context")
-            errors, _, _ = uncovr.validate(root)
+            errors, warnings, _ = uncovr.validate(root)
             self.assertEqual(errors, [])
+            self.assertFalse([w for w in warnings if "pin a Git revision" not in w], warnings)
             claims = {c["id"]: c for c in uncovr.load_claims(root)[0]}
             text = lambda name: (root / "product-context" / name).read_text(encoding="utf-8")
             for case in cases["stages"]:
@@ -208,6 +406,259 @@ class StageCaseTests(unittest.TestCase):
             with self.subTest(file=name, section=section):
                 self.assertRegex((templates / name).read_text(encoding="utf-8"),
                                  rf"(?m)^## {re.escape(section)}$")
+
+    def test_architecture_guidance_separates_inspected_configured_and_production(self):
+        texts = {name: (SKILL / "references" / f"{name}.md").read_text(encoding="utf-8")
+                 for name in ("explorer", "validator", "evidence-contract", "repository-signals")}
+        template = (SKILL / "assets" / "product-context" / "architecture.md").read_text(encoding="utf-8")
+        required = {
+            "explorer": ("*Inspection boundary*", "Do not list every library", "cites a claim ID",
+                         "A checkout does not prove the version in production"),
+            "validator": ("configuration found, execution observed and production apart",
+                          "a checkout does not prove the version in production"),
+            "evidence-contract": ("**Configuration found**", "**Execution observed**",
+                                  "**Production not confirmed**", "**External systems**",
+                                  "only with a source that states the limit"),
+            "repository-signals": ("configuration found, execution observed, production not confirmed",
+                                   "never every library", "A checkout is not production"),
+        }
+        for name, phrases in required.items():
+            for phrase in phrases:
+                with self.subTest(file=name, phrase=phrase):
+                    self.assertIn(phrase, texts[name])
+        for heading in ("Inspection boundary", "Technology stack", "Context and major components",
+                        "Deployment and environments"):
+            with self.subTest(heading=heading):
+                self.assertRegex(template, rf"(?m)^## {heading}$")
+        self.assertIn("| Technology | Role in the system | Relevant constraint | Claim ID |", template)
+        for label in ("Configuration found", "Execution observed", "Production not confirmed"):
+            with self.subTest(label=label):
+                self.assertIn(f"- {label}:", template)
+
+    def test_analyst_semantic_guardrails(self):
+        analyst = (SKILL / "references" / "analyst.md").read_text(encoding="utf-8")
+        required = {
+            "ui_evidence": ("UI path", "outside the confirmed scope", "unreviewed"),
+            "bounded_claims": ("universal and absence claims", "direct state updates",
+                               "inspected paths", "not proof of downstream delivery"),
+            "atomic_decisions": ("independent business decisions", "old-to-new ID mapping",
+                                 "undecided business rules remain `pending`"),
+            "source_conflicts": ("same trigger, actor, state, configuration and revision",
+                                 "separate `contradicted` claim", "both sources"),
+            "question_premises": ("Do not phrase an `inferred` or `gap` premise as a fact",),
+        }
+        for guardrail, phrases in required.items():
+            with self.subTest(guardrail=guardrail):
+                for phrase in phrases:
+                    self.assertIn(phrase, analyst)
+
+    def test_validator_semantic_guardrails(self):
+        validator = (SKILL / "references" / "validator.md").read_text(encoding="utf-8")
+        required = (
+            "UI claims require the client path, templates and activation conditions",
+            "An excluded interface is unreviewed",
+            "falsify universal and absence claims",
+            "event emission from downstream delivery",
+            "partial decision has not spread approval or rejection",
+            "Reconcile conflicts in prose with the canonical evidence index",
+            "keep review verdict counts separate",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, validator)
+
+    def test_scoped_decision_semantic_guardrails(self):
+        skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        contract = (SKILL / "references" / "evidence-contract.md").read_text(encoding="utf-8")
+        self.assertIn("before recording a partial approval or rejection", skill)
+        self.assertIn("do not present `inferred` or `gap` premises as facts", skill)
+        required = (
+            "old-to-new ID mapping", "allocate unused IDs", "preserving the prior decision history",
+            "`business_validation`, `validated_by` and `validated_on` only to assertions explicitly covered",
+            "Undecided business rules remain `pending`",
+            "same trigger, actor, state, configuration and revision",
+            "separate `contradicted` claim citing both sources",
+            "A human choice settles desired behavior, not technical agreement",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, contract)
+
+    def test_example_separates_declared_intent_unknowns_and_conflicts(self):
+        expected = FIXTURE / "expected"
+        claims = {c["id"]: c for c in map(json.loads, (expected / "evidence.jsonl")
+                  .read_text(encoding="utf-8").splitlines()) if c}
+        declared, unknown, conflict = claims["CTX-001"], claims["CTX-002"], claims["BR-002"]
+        self.assertEqual((declared["kind"], declared["confidence"], declared["business_validation"]),
+                         ("assumption", "inferred", "pending"))
+        self.assertEqual({e["type"] for e in declared["evidence"]}, {"document"})
+        self.assertEqual((unknown["confidence"], unknown["business_validation"], unknown["evidence"]),
+                         ("gap", "pending", []))
+        self.assertEqual(conflict["confidence"], "contradicted")
+        self.assertTrue({"code", "document"} <= {e["type"] for e in conflict["evidence"]})
+        for claim in claims.values():
+            with self.subTest(claim=claim["id"]):
+                self.assertNotEqual(claim["business_validation"], "approved")
+                if claim["kind"] in ("feature", "business_rule", "assumption") or claim["confidence"] == "gap":
+                    self.assertNotEqual(claim["business_validation"], "not_applicable")
+        overview = (expected / "overview.md").read_text(encoding="utf-8")
+        section = lambda name: overview.split(f"## {name}\n")[1].split("\n## ")[0]
+        self.assertEqual(set(re.findall(r"\b[A-Z]+-\d{3}\b", section("Product capabilities"))),
+                         {"F-001", "F-002", "F-003"})
+        self.assertIn("CTX-001", section("Purpose and users"))
+        self.assertIn("CTX-002", section("Business objectives and unknowns"))
+        self.assertNotRegex(section("Who can clarify"), r"@\w")
+        self.assertIn("the Product Owner designates", section("Who can clarify"))
+        glossary = (expected / "domain.md").read_text(encoding="utf-8").split("## Glossary\n")[1].split("\n## ")[0]
+        for claim_id in ("CTX-003", "BR-002"):
+            self.assertIn(claim_id, glossary)
+
+    def test_overview_and_domain_guidance_separates_observed_declared_and_unknown(self):
+        files = {
+            "overview": SKILL / "assets/product-context/overview.md",
+            "domain": SKILL / "assets/product-context/domain.md",
+            "evidence-contract": SKILL / "references/evidence-contract.md",
+            "analyst": SKILL / "references/analyst.md",
+            "validator": SKILL / "references/validator.md",
+            "repository-signals": SKILL / "references/repository-signals.md",
+            "SKILL": SKILL / "SKILL.md",
+        }
+        required = {
+            "overview": ("A capability is not a purpose, a value or a plan", "Declared only", "Observed only",
+                         "is not a roadmap item", "CODEOWNERS declares who reviews paths, not who holds business authority"),
+            "domain": ("| Term | Meaning observed in code | Business definition | Ambiguity | Claim IDs |",
+                       "Never copy the observed meaning here"),
+            "evidence-contract": ("## Declared intent, definitions and people", "Behavior is not intent",
+                                  "an approved definition stays `inferred`", "missing intent is `gap` and `pending`",
+                                  "not evidence of business authority, knowledge or approval"),
+            "analyst": ("Don't turn existing behavior into business intent or a roadmap",
+                        "Use `not_applicable` only with a reason"),
+            "validator": ("that `not_applicable` has a reason",
+                          "The Product Owner designates who decides each question"),
+            "repository-signals": ("Capabilities are not intent", "never business authority or approval"),
+            "SKILL": ("never establish business authority or approval",),
+        }
+        for name, phrases in required.items():
+            text = files[name].read_text(encoding="utf-8")
+            for phrase in phrases:
+                with self.subTest(file=name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
+    def test_example_views_reference_canonical_records(self):
+        expected = FIXTURE / "expected"
+        trace = (expected / "traceability.md").read_text(encoding="utf-8")
+        review = (expected / "validation.md").read_text(encoding="utf-8")
+        sources = trace.split("## Sources\n")[1].split("\n## ")[0]
+        statuses = re.findall(r"\| (consulted|indicated|inaccessible) \|", sources)
+        self.assertEqual(statuses, ["consulted"] * 3)
+        self.assertIn("No external source is indicated or consulted", sources)
+        section = lambda name: review.split(f"## {name}\n")[1].split("\n## ")[0]
+        self.assertIn("None recorded.", section("Decisions"))
+        divergence = section("Contradictions and review outcomes")
+        self.assertIn("| BR-002 |", divergence)
+        self.assertIn("pending", divergence)
+        for field in ("validated_by", "validated_on", "Synthetic", "line_start"):
+            self.assertNotIn(field, trace + review)
+
+    def test_traceability_and_validation_guidance_keeps_sources_and_decisions_canonical(self):
+        files = {
+            "traceability": SKILL / "assets/product-context/traceability.md",
+            "validation": SKILL / "assets/product-context/validation.md",
+            "evidence-contract": SKILL / "references/evidence-contract.md",
+            "analyst": SKILL / "references/analyst.md",
+            "validator": SKILL / "references/validator.md",
+            "repository-signals": SKILL / "references/repository-signals.md",
+            "SKILL": SKILL / "SKILL.md",
+        }
+        required = {
+            "traceability": ("| Source | Purpose | Scope consulted | Version or date | Status | Claim IDs |",
+                             "only these appear as evidence in `evidence.jsonl`",
+                             "A document or ticket records intent or a request, not what the code does"),
+            "validation": ("## Decisions", "| Divergence | Claims involved | Source positions | Impact | Decision or status |",
+                           "who decided and when stay in evidence.jsonl", "never removed"),
+            "evidence-contract": ("## Sources, decisions and reopening", "Consulted sources only",
+                                  "Intent is not implementation", "never edit or delete a recorded decision",
+                                  "A person changing their mind without new evidence is a new decision",
+                                  "`supersedes`"),
+            "analyst": ("never cite an unopened source as evidence",),
+            "validator": ("must not appear as evidence", "reopen it only for new evidence"),
+            "repository-signals": ("| External references |", "never proof of implementation"),
+            "SKILL": ("reopen them only on new evidence",),
+        }
+        for name, phrases in required.items():
+            text = files[name].read_text(encoding="utf-8")
+            for phrase in phrases:
+                with self.subTest(file=name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
+    def test_example_draws_one_diagram_where_it_helps(self):
+        expected = FIXTURE / "expected"
+        blocks = {name: re.findall(r"```mermaid\n(.*?)```", (expected / name).read_text(encoding="utf-8"), re.S)
+                  for name in uncovr.ARTIFACTS}
+        self.assertEqual({name: len(found) for name, found in blocks.items() if found}, {"features.md": 1})
+        diagram = blocks["features.md"][0]
+        self.assertTrue(diagram.startswith("flowchart"))
+        self.assertIn("BR-002 contradicted", diagram)
+        self.assertNotIn("F-003", diagram)
+
+    def test_diagram_guidance_keeps_diagrams_as_views_of_claims(self):
+        files = {
+            "evidence-contract": SKILL / "references/evidence-contract.md",
+            "explorer": SKILL / "references/explorer.md",
+            "analyst": SKILL / "references/analyst.md",
+            "validator": SKILL / "references/validator.md",
+            "architecture": SKILL / "assets/product-context/architecture.md",
+            "features": SKILL / "assets/product-context/features.md",
+            "domain": SKILL / "assets/product-context/domain.md",
+            "traceability": SKILL / "assets/product-context/traceability.md",
+        }
+        required = {
+            "evidence-contract": ("## Diagrams", "never a source of its own", "a document may have none",
+                                  "Do not derive cardinality, execution order or transitions from names",
+                                  "No charts of quantities", "leave a gap undrawn"),
+            "explorer": ("*Diagrams* in `evidence-contract.md`",),
+            "analyst": ("*Diagrams* in `evidence-contract.md`",),
+            "validator": ("remove a diagram that adds nothing to the text",),
+            "architecture": ("`flowchart`",),
+            "features": ("`sequenceDiagram` when the order of interactions matters",),
+            "domain": ("`stateDiagram-v2`", "`erDiagram` only for verified relationships"),
+            "traceability": ("only when clearer than this table",),
+        }
+        for name, phrases in required.items():
+            text = files[name].read_text(encoding="utf-8")
+            for phrase in phrases:
+                with self.subTest(file=name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
+    def test_semantic_regression_evaluations(self):
+        dataset = json.loads((SKILL / "evals" / "evals.json").read_text(encoding="utf-8"))
+        regressions = dataset["semantic_regressions"]
+        self.assertRegex(regressions["revision"], r"^[0-9a-f]{40}$")
+        self.assertIn("outside the agent's accessible files", regressions["setup"])
+        self.assertIn("Never reuse or modify an existing pilot baseline", regressions["setup"])
+        cases = regressions["cases"]
+        self.assertEqual(len(cases), 4)
+        self.assertEqual({case["id"] for case in cases}, {
+            "ui_feedback", "bounded_notifications", "atomic_decisions", "source_conflicts"
+        })
+        for case in cases:
+            with self.subTest(case=case["id"]):
+                for field in ("input", "prompt", "source_refs", "pass_when", "fail_when"):
+                    self.assertTrue(case[field], field)
+                for reference in case["source_refs"]:
+                    self.assertFalse(Path(reference).is_absolute())
+                    self.assertNotIn("..", Path(reference).parts)
+        atomic = next(case for case in cases if case["id"] == "atomic_decisions")
+        seed = atomic["seed_claim"]
+        self.assertEqual(seed["confidence"], "inferred")
+        self.assertEqual(seed["business_validation"], "pending")
+        self.assertNotIn("validated_by", seed)
+        self.assertNotIn("validated_on", seed)
+        for evidence in seed["evidence"]:
+            self.assertEqual(evidence["revision"], regressions["revision"])
+            self.assertIn(evidence["ref"], atomic["source_refs"])
+        self.assertIn("Reject only", atomic["follow_up"])
+        self.assertIn("Evaluation PO", atomic["follow_up"])
 
 
 class HistoryTests(unittest.TestCase):
@@ -304,6 +755,9 @@ class OkfExportTests(unittest.TestCase):
         self.export("obsidian")
         domain = (self.wiki / "domain.md").read_text(encoding="utf-8")
         self.assertIn("[BR-001](rules/br-001.md)", domain)
+        architecture = (self.wiki / "architecture.md").read_text(encoding="utf-8")
+        self.assertIn("| [ARCH-003](architecture/arch-003.md) |", architecture)
+        self.assertIn("(configured, observed, unconfirmed)", architecture)
         rule = (self.wiki / "rules" / "br-001.md").read_text(encoding="utf-8")
         self.assertIn('aliases: ["BR-001"]', rule)
         self.assertIn("[Domain Model](../domain.md)", rule)
@@ -317,19 +771,48 @@ class OkfExportTests(unittest.TestCase):
         records = [json.loads(line) for line in evidence.read_text(encoding="utf-8").splitlines()]
         for record in records:
             if record["id"] == "BR-001":
-                record.update(business_validation="approved", validated_by="Luciano Borges",
+                record.update(business_validation="approved", validated_by="Synthetic PO (test fixture)",
                               validated_on="2026-11-10")
         evidence.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
         self.export("mkdocs", source_url="https://example.com/repo/{revision}/{path}#L{start}-{end}")
         approved = (self.wiki / "rules" / "br-001.md").read_text(encoding="utf-8")
         self.assertIn('status: "stable"', approved)
-        self.assertIn('verified: { by: "human:luciano-borges", at: "2026-11-10T00:00:00Z" }', approved)
+        self.assertIn('verified: { by: "human:synthetic-po-test-fixture", at: "2026-11-10T00:00:00Z" }', approved)
         self.assertIn('generated: { by: "uncovr/', approved)
         contradicted = (self.wiki / "rules" / "br-002.md").read_text(encoding="utf-8")
         self.assertIn('status: "draft"', contradicted)
         self.assertIn('confidence: "contradicted"', contradicted)
         self.assertIn("[^s1]: code: src/requests.py", contradicted)
         self.assertTrue(okf.GENERATOR.endswith(uncovr.VERSION))
+
+    def test_mermaid_blocks_are_copied_unchanged(self):
+        source = (self.root / "product-context" / "features.md").read_text(encoding="utf-8")
+        block = re.search(r"```mermaid\n.*?```\n", source, re.S).group(0)
+        for target in okf.TARGETS:
+            with self.subTest(target=target):
+                self.export(target)
+                exported = (self.wiki / "features.md").read_text(encoding="utf-8")
+                self.assertIn(block, exported)
+                self.assertNotIn("](", block)
+                self.assertRegex(exported, r"\(\[F-001\]\(/?features/f-001\.md\), \[F-002\]")
+
+    def test_superseded_decision_is_deprecated_and_linked(self):
+        evidence = self.root / "product-context" / "evidence.jsonl"
+        base = {"kind": "decision", "confidence": "inferred", "business_validation": "approved",
+                "validated_by": "Synthetic PO (test fixture)", "validated_on": "2026-11-10",
+                "evidence": [{"type": "interview", "ref": "Synthetic interview (test fixture)"}]}
+        first = dict(base, id="DEC-001", summary="Synthetic case: the limit is 5000.")
+        second = dict(base, id="DEC-002", summary="Synthetic case: the limit is 8000.", supersedes=["DEC-001"])
+        with evidence.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(first) + "\n" + json.dumps(second) + "\n")
+        self.export("mkdocs")
+        old, new = (self.wiki / "decisions" / "dec-001.md"), (self.wiki / "decisions" / "dec-002.md")
+        old_text, new_text = old.read_text(encoding="utf-8"), new.read_text(encoding="utf-8")
+        self.assertIn('status: "deprecated"', old_text)
+        self.assertIn("Superseded by: [DEC-002](dec-002.md)", old_text)
+        self.assertIn('status: "stable"', new_text)
+        self.assertIn("Supersedes: [DEC-001](dec-001.md)", new_text)
+        self.assertNotIn("the business rejected it", old_text + new_text)
 
     def test_source_urls_need_a_revision_and_a_template(self):
         claim = {"evidence": [{"type": "code", "ref": "src/a.py", "line_start": 2, "line_end": 4}]}
@@ -421,6 +904,86 @@ class OkfExportTests(unittest.TestCase):
 class MarketplacePackageTests(unittest.TestCase):
     """The skill folder as the marketplace receives it: one ZIP, one top folder, text only."""
 
+    def _run_packaged_script(self, archive, name, target, *arguments):
+        payload = archive.read(f"uncovr/scripts/{name}")
+        with tempfile.TemporaryDirectory(prefix="uncovr-script-") as temporary:
+            directory = Path(temporary)
+            script = directory / "delivered.py"
+            script.write_bytes(payload)
+            result = subprocess.run(
+                [sys.executable, "-B", str(script), str(target), *arguments],
+                cwd=directory, capture_output=True, text=True, timeout=30,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
+            self.assertEqual(script.read_bytes(), payload)
+            self.assertEqual(sorted(path.name for path in directory.iterdir()), ["delivered.py"])
+        self.assertFalse(directory.exists())
+        return result
+
+    def test_packaged_scripts_run_without_installation_and_preserve_baseline(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "project with spaces"
+            shutil.copytree(FIXTURE / "app", target)
+            shutil.copytree(FIXTURE / "expected", target / "product-context")
+            before = {path.relative_to(target): path.read_bytes()
+                      for path in target.rglob("*") if path.is_file()}
+            self.assertEqual(uncovr.pack(root / "package"), 0)
+            with zipfile.ZipFile(root / "package" / "uncovr.zip") as archive:
+                result = self._run_packaged_script(archive, "check.py", target)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("STRUCTURE VALID", result.stdout)
+                for mode in okf.TARGETS:
+                    with self.subTest(mode=mode):
+                        result = self._run_packaged_script(archive, "okf.py", target, "--target", mode)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertTrue((target / "product-context/wiki/index.md").is_file())
+                        self.assertEqual(okf.conformance(target / "product-context/wiki"), [])
+            self.assertEqual(before, {relative: (target / relative).read_bytes() for relative in before})
+            self.assertFalse((target / ".github").exists())
+            self.assertFalse((target / uncovr.MANIFEST).exists())
+
+    @unittest.skipUnless(shutil.which("git"), "git not installed")
+    def test_packaged_history_runs_without_installation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "repository with spaces"
+            shutil.copytree(FIXTURE / "app", target)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "Test Author", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                   "GIT_COMMITTER_NAME": "Test Author", "GIT_COMMITTER_EMAIL": "test@example.invalid"}
+            for arguments in (("init", "-q"), ("add", "."), ("-c", "commit.gpgSign=false", "commit", "-q", "-m", "feat: fixture")):
+                subprocess.run(["git", "-C", str(target), *arguments], env=env,
+                               check=True, capture_output=True, timeout=30)
+            before = {path.relative_to(target): path.read_bytes()
+                      for path in target.rglob("*") if path.is_file()}
+            self.assertEqual(uncovr.pack(root / "package"), 0)
+            with zipfile.ZipFile(root / "package" / "uncovr.zip") as archive:
+                result = self._run_packaged_script(archive, "history.py", target,
+                                                   "--since", "1970-01-01", "--json")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)["commits"], 1)
+            self.assertNotIn("test@example.invalid", result.stdout)
+            self.assertEqual(before, {path.relative_to(target): path.read_bytes()
+                                      for path in target.rglob("*") if path.is_file()})
+
+    def test_packaged_script_failures_leave_no_temporary_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "missing repository"
+            self.assertEqual(uncovr.pack(root / "package"), 0)
+            with zipfile.ZipFile(root / "package" / "uncovr.zip") as archive:
+                cases = (
+                    ("check.py", (), 2, "Target directory does not exist"),
+                    ("history.py", (), 2, "No Git history available"),
+                    ("okf.py", ("--target", "obsidian"), 1, "product-context/ not found"),
+                )
+                for name, arguments, exit_code, message in cases:
+                    with self.subTest(script=name):
+                        result = self._run_packaged_script(archive, name, target, *arguments)
+                        self.assertEqual(result.returncode, exit_code, result.stdout + result.stderr)
+                        self.assertIn(message, result.stdout + result.stderr)
+            self.assertFalse(target.exists())
+
     def test_skill_folder_has_no_packaging_problems(self):
         self.assertEqual(uncovr.pack_problems(SKILL), [])
 
@@ -432,6 +995,9 @@ class MarketplacePackageTests(unittest.TestCase):
         self.assertIn("Use when", description)
         self.assertIn("Do not use", description)
         self.assertLessEqual(len(description), 1024)
+        self.assertRegex(frontmatter, rf'(?m)^version: "{re.escape(uncovr.VERSION)}"$')
+        summary = re.search(r"(?m)^summary: (.+)$", frontmatter).group(1)
+        self.assertLessEqual(len(summary), 300)
 
     def test_skill_references_resolve_inside_the_skill(self):
         text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
@@ -440,20 +1006,64 @@ class MarketplacePackageTests(unittest.TestCase):
         self.assertNotIn(".uncovr/uncovr.py", text)
         self.assertNotIn(".github/", text)
 
+    def test_skill_defines_local_and_mcp_execution(self):
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        for clause in (
+            "### Local installation", "### Agensi (MCP)",
+            'get_skill({ slug, file: "<path from the returned index>" })',
+            "Do not run the Uncovr installer",
+            "unchanged in a private temporary directory outside the repository",
+            "Each script must run without sibling files",
+            "including after a failed run", "Only persistent write destinations",
+        ):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, text)
+
+    def test_stage_commands_use_the_execution_contract(self):
+        for relative in ("SKILL.md", "references/explorer.md", "references/validator.md"):
+            with self.subTest(file=relative):
+                text = (SKILL / relative).read_text(encoding="utf-8")
+                self.assertIn("Execution modes", text)
+                self.assertNotRegex(text, r"python3(?: -B)? scripts/")
+
+    def test_marketplace_review_does_not_require_an_installed_agent(self):
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        for clause in ("native subagent capability", "not required in Agensi", "use a generic worker",
+                       "Do not create or install an agent definition", "review was not independent"):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, text)
+
+    def test_buyer_readme_explains_delivery_and_validation_limits(self):
+        text = (SKILL / "README.md").read_text(encoding="utf-8")
+        for clause in ("## Use through Agensi", "no local installation", "Python 3.10+",
+                       "## Compatibility and validation", "end-to-end agent evaluations"):
+            with self.subTest(clause=clause):
+                self.assertIn(clause, text)
+
     def test_evals_have_trigger_prompts_and_a_quality_case(self):
         evals = json.loads((SKILL / "evals" / "evals.json").read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(evals["should_trigger"]), 5)
-        self.assertGreaterEqual(len(evals["should_not_trigger"]), 3)
+        self.assertGreaterEqual(len(evals["should_not_trigger"]), 5)
         self.assertTrue((SKILL / evals["quality"]["case"]).is_file())
+        for scenario in ("incremental", "agensi_delivery"):
+            with self.subTest(scenario=scenario):
+                self.assertTrue(evals[scenario]["input"])
+                self.assertTrue(evals[scenario]["pass_when"])
 
     def test_pack_writes_one_top_folder_with_skill_md(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as again:
             self.assertEqual(uncovr.pack(Path(tmp)), 0)
             with zipfile.ZipFile(Path(tmp) / "uncovr.zip") as archive:
                 names = archive.namelist()
+                self.assertEqual(archive.read("uncovr/LICENSE"), (SKILL.parents[2] / "LICENSE").read_bytes())
+                expected = {f"uncovr/{path.relative_to(SKILL).as_posix()}"
+                            for path in uncovr._package_files(SKILL)} | {"uncovr/LICENSE"}
+                self.assertEqual(set(names), expected)
+                self.assertEqual(len(names), len(set(names)))
             self.assertIn("uncovr/SKILL.md", names)
             self.assertEqual({name.split("/")[0] for name in names}, {"uncovr"})
             self.assertFalse([n for n in names if "/." in n or "__pycache__" in n])
+            self.assertFalse([name for name in names if name.endswith(".agent.md")])
             uncovr.pack(Path(again))
             self.assertEqual((Path(tmp) / "uncovr.zip").read_bytes(), (Path(again) / "uncovr.zip").read_bytes())
 

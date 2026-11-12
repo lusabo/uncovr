@@ -1,6 +1,6 @@
 {
   "skill": "uncovr",
-  "how_to_run": "Start a new chat with the skill available and no mention of its name. Send each prompt from the root of a repository. Count whether the skill is loaded. Target: at least 4 of 5 should_trigger, at most 1 of 3 should_not_trigger. Then run the quality case below 3 to 5 times and compare with its expected baseline.",
+  "how_to_run": "Use a clean copy and a new chat for each trigger prompt, without mentioning the skill name or selecting a custom Uncovr agent. Keep expected outputs and evaluator notes outside the agent's test workspace. Confirm loading from tool activity. Recommended target: 5 of 5 should_trigger and 0 of 5 should_not_trigger. Run the quality case 3 to 5 times per advertised environment. Record skill revision, target revision, runtime, model, delivery mode, prompts, results, duration and limitations. These are manual agent evaluations, not results of the Python unit suite.",
   "should_trigger": [
     "I inherited this codebase and nobody documented it. What does this system actually do?",
     "Before we change the approval flow, map the business rules the code enforces today.",
@@ -11,11 +11,13 @@
   "should_not_trigger": [
     "Fix the failing test in tests/test_requests.py.",
     "Write a spec for a new delegation feature.",
-    "Review this pull request for bugs."
+    "Review this pull request for bugs.",
+    "Explain what this regular expression matches.",
+    "Help me configure Docker for this project."
   ],
   "quality": {
     "case": "examples/order-approval/cases.json",
-    "input": "A copy of examples/order-approval/app/ as the repository, scope confirmed as the whole repository.",
+    "input": "A fresh copy of examples/order-approval/app/ as the repository. When asked, confirm the whole repository as scope and no wiki. Keep the expected baseline and evaluation criteria available only to the reviewer, not the agent being evaluated.",
     "pass_when": [
       "Every claim in the case appears with the expected confidence, or an equivalent claim with the same evidence.",
       "BR-002 is left contradicted, not resolved.",
@@ -24,7 +26,162 @@
       "APPROVAL_LIMIT is listed as a hard-coded parameter.",
       "domain.md has a permission matrix for requester, approver and finance approver, and lists the e-mail fields as personal data without values.",
       "F-001 is rated high criticality.",
+      "overview.md lists approve and reject as observed capabilities and attributes purpose and users to the README, inferred and pending; objectives and value are a gap; no capability or TODO is presented as intent or a roadmap.",
+      "The domain glossary separates meaning observed in code from the README's definitions: the approver as manager is an open ambiguity, the limit stays contradicted, undefined terms are gaps.",
+      "No role, team or person is presented as a business authority or approver; not_applicable is used only for technical facts, with a reason.",
+      "architecture.md has a compact stack (Python, standard library) with a claim ID per row, and keeps the absent deployment configuration, the unexecuted tests and the unknown production environment apart; production is a gap, not assumed.",
+      "traceability.md names for each claim only files its evidence cites; any Sources view lists only what was opened as consulted and no external source; validation.md gives BR-002 a divergence row with each source's position, left pending, and records no decision.",
+      "Any Mermaid diagram is a fenced mermaid block preceded by a sentence citing its claim IDs, draws only what those claims support, names BR-002 as contradicted and leaves F-003 undrawn; the single-module architecture, the three states and the traceability table get no diagram, and no chart of quantities appears.",
       "The run stops at the scope checkpoint and at the baseline-review checkpoint."
+    ]
+  },
+  "incremental": {
+    "input": "A repository with two existing workflows and a reviewed snapshot of the first workflow's baseline. Keep that snapshot outside the agent's workspace and leave business questions pending.",
+    "prompt": "Continue the existing baseline with an additional existing workflow. Preserve previous findings, IDs, evidence and human edits. Propose the additional scope and wait for my confirmation.",
+    "pass_when": [
+      "The agent waits for confirmation before analysing the additional workflow.",
+      "Unrelated original claims, IDs, sources, human edits and unanswered questions remain intact when compared with the external snapshot.",
+      "New claims have unused IDs; no existing claim is duplicated or silently replaced.",
+      "The same six documents are extended and the evidence index passes the structural check.",
+      "Both workflow scopes remain recorded; no business approval is inferred and the final phase is awaiting_human_review."
+    ]
+  },
+  "decision_history": {
+    "input": "A copy of the reviewed order-approval baseline in which a synthetic, clearly labelled Product Owner (for example 'Synthetic PO (evaluation fixture)') answered BR-002 in an interview recorded at a stated date. In a second session, a newer revision of src/requests.py changes APPROVAL_LIMIT, and the README links a finance policy page the agent cannot open. Keep the expected results outside the agent's workspace.",
+    "prompt": "Update the baseline with the newer revision. Preserve previous decisions and human edits.",
+    "pass_when": [
+      "The first session records the answer as a decision claim citing the interview, with business_validation, validated_by and validated_on exactly as supplied, confidence inferred, and lists it under Decisions; the BR-002 question leaves Outstanding questions and the divergence row cites the decision.",
+      "The decision does not make BR-002 confirmed or say the code changed; the divergence stays until code evidence shows the sources agree.",
+      "In the second session the decision claim is unchanged; the changed limit is a new claim at the newer revision; the decision is marked reopened with that claim ID as the reason, and the question is asked again citing both.",
+      "The finance policy page is listed in Sources as indicated or inaccessible, is not an evidence entry, and is not presented as verified; a gap records what it might say.",
+      "Nothing is approved, superseded or closed on the person's behalf, and no real person is named.",
+      "Control: rerunning the second session on the same revision without new sources leaves the decision in force and reopens nothing."
+    ]
+  },
+  "semantic_regressions": {
+    "repository": "https://github.com/orangehrm/legacy.orangehrm.git",
+    "revision": "5d1661256a09ec3226bda48530f98175ac6cc006",
+    "setup": "The evaluator prepares a fresh isolated clone at the pinned revision for each case and variant, with the updated local skill but without its examples or evals. Keep this dataset, expected results and evaluator notes outside the agent's accessible files. Never reuse or modify an existing pilot baseline. Confirm only the case's scope and no wiki; source references below are reviewer evidence, not an answer key to pass to the agent. Do not run the application or its tests. Run each case 3 to 5 times per advertised environment and record failures as well as passes. These cases have not been certified by the Python suite.",
+    "cases": [
+      {
+        "id": "ui_feedback",
+        "input": "Run two variants in separate clones and chats. In the first, confirm only the leave-assignment backend and decline any request to extend into the interface. In the second, confirm the leave-assignment flow including the form, its JavaScript and template.",
+        "prompt": "Reconstruct how leave assignment handles insufficient balance and user feedback. Propose the scope and wait for my confirmation before analysing. Do not change code.",
+        "source_refs": [
+          "symfony/plugins/orangehrmLeavePlugin/lib/service/LeaveAssignmentService.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/form/AssignLeaveForm.php",
+          "symfony/plugins/orangehrmLeavePlugin/web/js/assignLeaveSuccess.js",
+          "symfony/plugins/orangehrmLeavePlugin/modules/leave/templates/assignLeaveSuccess.php"
+        ],
+        "pass_when": [
+          "In the backend-only variant, the agent leaves interface behavior unreviewed and does not read excluded UI files after the scope extension is declined.",
+          "In the UI-enabled variant, the agent follows the form's JavaScript loading and identifies the leaveBalanceConfirm modal, its warning text and activation conditions.",
+          "Backend permission to exceed balance and a conditional UI confirmation are separate facts, not automatically a contradiction or a guarantee that every insufficient-balance case warns.",
+          "PO questions cite relevant claims and distinguish unknown interface behavior from observed behavior."
+        ],
+        "fail_when": [
+          "The agent asserts or asks as a fact that assignment happens without warning based only on backend evidence.",
+          "It claims that every case warns, or inspects an excluded interface without scope confirmation."
+        ]
+      },
+      {
+        "id": "bounded_notifications",
+        "input": "Confirm the leave request, assignment and status-change flows, their mail observer and the automatic transition to TAKEN; include the relevant actions, services, DAO and mail code.",
+        "prompt": "Reconstruct leave status changes and their notification side effects, including automatic changes. Propose the scope and wait for confirmation. Do not change code.",
+        "source_refs": [
+          "symfony/plugins/orangehrmLeavePlugin/lib/service/LeaveApplicationService.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/service/LeaveAssignmentService.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/service/LeaveRequestService.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/dao/LeaveRequestDao.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/mail/LeaveMailer.php"
+        ],
+        "pass_when": [
+          "The baseline distinguishes explicit workflow operations that emit leave.change from the direct DAO update that promotes SCHEDULED to TAKEN without that event.",
+          "Claims are bounded to inspected paths; exceptions agree across the evidence index, features and architecture.",
+          "The agent distinguishes event emission, recipient selection and actual mail delivery, and does not claim unexecuted runtime checks."
+        ],
+        "fail_when": [
+          "A confirmed claim says every status change emits an event or sends mail despite the direct TAKEN update.",
+          "The exception appears only in prose while the canonical claim stays universal, or event emission is treated as guaranteed delivery."
+        ]
+      },
+      {
+        "id": "atomic_decisions",
+        "input": "In an isolated clone, the evaluator prepares the six template artifacts, an awaiting_human_review state and the seed claim below, referenced from domain.md and validation.md. This intentionally compound claim is test input, not an expected answer. Snapshot these files outside the agent's accessible files. Confirm only date/time validation and its callers. After the review, provide the follow-up decision.",
+        "prompt": "Review the existing leave date/time validation baseline against the source. Preserve its IDs and history, propose focused corrections and wait for my business decisions. Do not change code.",
+        "source_refs": [
+          "symfony/plugins/orangehrmLeavePlugin/lib/form/ApplyLeaveForm.php",
+          "symfony/lib/vendor/symfony/lib/validator/sfValidatorError.class.php"
+        ],
+        "seed_claim": {
+          "id": "BR-001",
+          "kind": "business_rule",
+          "summary": "Invalid date ranges are rejected, while an invalid time range may produce a PHP error instead of a validation message.",
+          "confidence": "inferred",
+          "business_validation": "pending",
+          "evidence": [
+            {
+              "type": "code",
+              "ref": "symfony/plugins/orangehrmLeavePlugin/lib/form/ApplyLeaveForm.php",
+              "line_start": 206,
+              "line_end": 298,
+              "revision": "5d1661256a09ec3226bda48530f98175ac6cc006"
+            },
+            {
+              "type": "code",
+              "ref": "symfony/lib/vendor/symfony/lib/validator/sfValidatorError.class.php",
+              "line_start": 32,
+              "line_end": 32,
+              "revision": "5d1661256a09ec3226bda48530f98175ac6cc006"
+            }
+          ]
+        },
+        "follow_up": "Reject only the suspected time-validation failure. I have not decided whether to accept the date rules. For this evaluation, record the decision by Evaluation PO on 2026-11-12.",
+        "pass_when": [
+          "The compound record is split into independently testable claims with an old-to-new ID mapping, preserved decision history and unused IDs for the separated assertions.",
+          "Date-validation claims remain technically confirmed and business pending; only the suspected time failure is inferred and rejected with the supplied decision metadata.",
+          "The existing ID is retained only for an assertion it already covered, and affected references, unrelated records and unanswered questions are preserved.",
+          "The resulting baseline passes the structural check and remains awaiting_human_review; rejection does not imply runtime reproduction."
+        ],
+        "fail_when": [
+          "One compound claim remains rejected, or the date rules inherit the time decision or its metadata.",
+          "Existing IDs or history disappear, an ID is repurposed for an unrelated assertion, or the agent marks the suspected failure confirmed without new evidence."
+        ]
+      },
+      {
+        "id": "source_conflicts",
+        "input": "Confirm notification behavior for leave submissions with mixed per-day actions, including the workflow seed, change service, mail observer and recipient resolver. After the baseline review, provide the follow-up decision.",
+        "prompt": "Reconstruct leave notification recipients and compare the workflow configuration with the implementation. Propose the scope and wait for confirmation. Do not change code.",
+        "source_refs": [
+          "dbscript/dbscript-2.sql",
+          "symfony/plugins/orangehrmLeavePlugin/lib/service/LeaveRequestService.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/mail/LeaveMailer.php",
+          "symfony/plugins/orangehrmLeavePlugin/lib/mail/LeaveEmailProcessor.php"
+        ],
+        "follow_up": "Subscribers should receive notifications for mixed actions, as the workflow configuration specifies. Record this as desired behavior without changing code.",
+        "pass_when": [
+          "The agent traces the same mixed-action case and pinned revision from configured subscriber roles through leave.change to the resolver that returns no subscribers.",
+          "Supported configuration and implementation facts remain confirmed; a separate or existing divergence claim is contradicted and cites both sources with the mismatch conditions.",
+          "The index, affected documents, reviewer findings and final counts consistently expose the divergence; different event types or conditional exceptions are not conflated.",
+          "The human choice is recorded without erasing the implementation mismatch, changing technical confidence merely from the answer, or claiming code was fixed."
+        ],
+        "fail_when": [
+          "The mismatch exists only in prose while the index and summary say there are no material contradictions.",
+          "The agent relabels all supported source facts contradicted, compares different contexts, or treats the human choice as evidence that the code now agrees."
+        ]
+      }
+    ]
+  },
+  "agensi_delivery": {
+    "input": "After publication, use a clean target repository with a connected Agensi agent, access to the listing, and no installed Uncovr skill or named agents. Before publication, local package tests only simulate script delivery and cannot pass this evaluation.",
+    "pass_when": [
+      "The agent loads the live skill and required supporting text through get_skill, using paths from the returned file index.",
+      "No installer runs and no skill, agent definition, reference, template or download cache is persisted in the project.",
+      "Each helper runs from an unchanged temporary copy, with an explicit repository root and without sibling package files; temporary copies are removed after success or failure.",
+      "Only generated baseline outputs and progress state persist; source code and existing human edits are unchanged.",
+      "Review uses a native worker when available, or explicitly records that an inline review was not independent.",
+      "Missing repository access, MCP resources, Python, Git or worker capabilities are reported without invented results.",
+      "A later task reloads the live skill and resumes from the existing outputs instead of reinstalling or resetting the baseline."
     ]
   }
 }

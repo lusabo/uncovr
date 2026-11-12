@@ -6,33 +6,38 @@
     {
       "stage": "explorer",
       "input": "Scope confirmed at the scope checkpoint: the whole repository (src/, tests/, README.md), no exclusions.",
-      "expected": "One module mapped, no integrations; the untested paths are recorded as a regression hotspot.",
+      "expected": "One module mapped with its responsibility, boundary and flows, no integrations; a one-row stack; deployment left unconfirmed rather than assumed; the untested paths are recorded as a regression hotspot.",
       "claims": {
         "ARCH-001": {"confidence": "confirmed", "in": "architecture.md"},
-        "ARCH-002": {"confidence": "confirmed", "in": "architecture.md"}
+        "ARCH-002": {"confidence": "confirmed", "in": "architecture.md"},
+        "ARCH-003": {"confidence": "confirmed", "in": "architecture.md"},
+        "ARCH-004": {"confidence": "gap", "in": "architecture.md"}
       }
     },
     {
       "stage": "analyst",
       "input": "Explorer's architecture.md and claims, plus the repository.",
-      "expected": "Approve and reject as features, the TODO notification as a gap, and four atomic rules, including the asymmetry between approve and reject.",
+      "expected": "Approve and reject as features, the TODO notification as a gap, and four atomic rules, including the asymmetry between approve and reject. The README's purpose and users are a declared, unconfirmed source; objectives are a gap; the glossary keeps observed meanings apart from the README's definitions. One Mermaid flowchart in features.md shows the approve and reject checks from the cited claims, with BR-002 named as contradicted and the F-003 gap undrawn; architecture, states and traceability stay as text or tables, where a diagram would add nothing.",
       "claims": {
         "F-001": {"confidence": "confirmed", "in": "features.md"},
         "F-002": {"confidence": "confirmed", "in": "features.md"},
         "F-003": {"confidence": "gap", "in": "features.md"},
         "BR-001": {"confidence": "confirmed", "in": "domain.md"},
         "BR-003": {"confidence": "confirmed", "in": "domain.md"},
-        "BR-004": {"confidence": "confirmed", "in": "domain.md"}
+        "BR-004": {"confidence": "confirmed", "in": "domain.md"},
+        "CTX-001": {"confidence": "inferred", "in": "overview.md"},
+        "CTX-002": {"confidence": "gap", "in": "overview.md"},
+        "CTX-003": {"confidence": "inferred", "in": "domain.md"}
       }
     },
     {
       "stage": "validator",
       "input": "The six artifacts and evidence.jsonl, in a context separate from the analysis.",
-      "expected": "The limit is marked contradicted rather than resolved; questions for the Product Owner, the blocking one first.",
+      "expected": "The limit is marked contradicted rather than resolved, with a divergence row giving each source's position and left pending; no decision is recorded; the Sources view lists only what was consulted and no external source; questions for the Product Owner, the blocking one first.",
       "claims": {
         "BR-002": {"confidence": "contradicted", "in": "validation.md"}
       },
-      "questions": ["BR-002", "BR-004", "F-003"]
+      "questions": ["BR-002", "CTX-003", "BR-004", "F-003"]
     }
   ]
 }

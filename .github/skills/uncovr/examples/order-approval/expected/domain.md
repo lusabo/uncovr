@@ -2,8 +2,14 @@
 
 ## Glossary
 
-- **Request**: a purchase request with an amount, a requester and a status.
-- **Approver**: the person deciding a request, identified by an address.
+| Term | Meaning observed in code | Business definition | Ambiguity | Claim IDs |
+| --- | --- | --- | --- | --- |
+| Request | An in-memory object with an ID, an amount, a requester and a status | A purchase request raised by an employee (README, not confirmed) | The currency of the amount is a gap | ARCH-001, CTX-001 |
+| Requester | The string compared with the approver; tests use e-mail-like addresses | An employee (README, not confirmed) | None known | BR-001, CTX-001 |
+| Approver | Any string other than the requester; above the limit, one ending in `@finance` | A manager (README, not confirmed) | The code checks no manager role | BR-001, BR-002, CTX-003 |
+| Finance approver | An approver whose address ends in `@finance` | "Approval from finance", without saying who belongs to finance | Whether the address suffix is how finance is identified | BR-002 |
+| Approval limit | Amounts strictly above 5000 need a finance approver | Requests above 10 000 need finance (README) | Contradicted: 5000 in code, 10 000 in the README | BR-002 |
+| Status | `pending`, then `approved` or `rejected` | Gap: no source defines the statuses | None known | BR-003 |
 
 ## Central entities and relationships
 
@@ -32,7 +38,7 @@ A request belongs to one requester and is decided by one approver.
 | Finance approver (`@finance`) | Approve | yes | any amount | BR-002 |
 | Any person | Reject | yes | pending | BR-004 |
 
-Roles are inferred from addresses; there is no role model in the code (ARCH-001).
+Roles are inferred from addresses; there is no role model in the code (ARCH-001). Whether only managers may approve is open (CTX-003).
 
 ## Sensitive data
 

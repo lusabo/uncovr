@@ -11,7 +11,7 @@ import shutil
 import sys
 import zipfile
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 MANIFEST = ".uncovr/manifest.json"
 SKILL_NAME = "uncovr"
 SKILL_DIR = ".github/skills/uncovr"
@@ -146,6 +146,17 @@ def pack(out: Path) -> int:
         return 2
     skill = source_root / SKILL_DIR
     problems = pack_problems(skill)
+    license_file = source_root / "LICENSE"
+    license_bytes = b""
+    if license_file.is_symlink() or not license_file.is_file():
+        problems.append("LICENSE: a regular file is required")
+    else:
+        try:
+            license_bytes = license_file.read_bytes()
+            if not license_bytes.decode("utf-8").strip():
+                problems.append("LICENSE: empty file")
+        except (OSError, UnicodeError):
+            problems.append("LICENSE: readable UTF-8 text is required")
     for problem in problems:
         print(f"ERROR: {problem}")
     if problems:
@@ -153,14 +164,18 @@ def pack(out: Path) -> int:
     out = out.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
     archive = out / f"{SKILL_NAME}.zip"
-    files = _package_files(skill)
+    files = {
+        f"{SKILL_NAME}/{path.relative_to(skill).as_posix()}": path.read_bytes()
+        for path in _package_files(skill)
+    }
+    files[f"{SKILL_NAME}/LICENSE"] = license_bytes
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path in files:
+        for name, content in sorted(files.items()):
             # Fixed timestamp and mode keep the archive identical for identical sources.
-            info = zipfile.ZipInfo(f"{SKILL_NAME}/{path.relative_to(skill).as_posix()}", (1980, 1, 1, 0, 0, 0))
+            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
-            zf.writestr(info, path.read_bytes())
+            zf.writestr(info, content)
     print(f"Packed {len(files)} files into {archive}")
     return 0
 
